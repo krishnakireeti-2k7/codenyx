@@ -345,7 +345,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         onTap: () {
           _onNavTapped(index);
           if (index == 1) {
-            context.go('/feed');
+            context.push('/feed');
           }
         },
         borderRadius: BorderRadius.circular(12),
