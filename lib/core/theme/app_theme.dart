@@ -122,15 +122,15 @@ class AppTheme {
     double borderRadius = radiusMedium,
   }) {
     return BoxDecoration(
-      gradient: cardGradient,
+      color: surfaceLight.withOpacity(0.5),
       borderRadius: BorderRadius.circular(borderRadius),
-      border: Border.all(color: borderColor, width: 1),
+      border: Border.all(color: borderColor, width: 0.8),
       boxShadow: elevated
           ? [
               BoxShadow(
-                color: Colors.black.withOpacity(0.25),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ]
           : null,
@@ -141,44 +141,24 @@ class AppTheme {
     double borderRadius = radiusMedium,
   }) {
     return BoxDecoration(
-      gradient: LinearGradient(
-        colors: [
-          accentPrimary.withOpacity(0.12),
-          accentSecondary.withOpacity(0.08),
-        ],
-      ),
+      color: accentPrimary.withOpacity(0.08),
       borderRadius: BorderRadius.circular(borderRadius),
-      border: Border.all(color: accentPrimary.withOpacity(0.3), width: 1.5),
+      border: Border.all(color: accentPrimary.withOpacity(0.25), width: 1),
     );
   }
 
   static BoxDecoration navBarDecoration() {
-    return BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.transparent,
-          Colors.black.withOpacity(0.3),
-          Colors.black.withOpacity(0.7),
-        ],
-      ),
-    );
+    return BoxDecoration(color: Colors.black.withOpacity(0.5));
   }
 
   static BoxDecoration bannerDecoration({bool isTimer = false}) {
     return BoxDecoration(
-      gradient: isTimer
-          ? LinearGradient(
-              colors: [
-                accentPrimary.withOpacity(0.15),
-                accentSecondary.withOpacity(0.1),
-              ],
-            )
-          : cardGradient,
+      color: isTimer
+          ? accentPrimary.withOpacity(0.1)
+          : surfaceLight.withOpacity(0.5),
       borderRadius: BorderRadius.circular(radiusLarge),
       border: Border.all(
-        color: isTimer ? accentPrimary.withOpacity(0.3) : borderColor,
+        color: isTimer ? accentPrimary.withOpacity(0.25) : borderColor,
         width: 1,
       ),
     );

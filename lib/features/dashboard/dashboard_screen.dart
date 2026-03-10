@@ -18,15 +18,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   int _selectedIndex = 0;
 
   late PageController _pageController;
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
 
   @override
   void initState() {
     super.initState();
     loadTeam();
-    _setupAnimations();
     _pageController = PageController(initialPage: 0);
 
     _pageController.addListener(() {
@@ -34,24 +30,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         _selectedIndex = _pageController.page?.round() ?? 0;
       });
     });
-  }
-
-  void _setupAnimations() {
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-    );
-
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
-          CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-        );
-
-    _animationController.forward();
   }
 
   void _onNavTapped(int index) {
@@ -79,7 +57,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void dispose() {
     _pageController.dispose();
-    _animationController.dispose();
     super.dispose();
   }
 
@@ -152,134 +129,123 @@ class _DashboardScreenState extends State<DashboardScreen>
       children: [
         // Main content
         SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: Column(
-                children: [
-                  // Hackathon name header
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      left: AppTheme.spacingL,
-                      right: AppTheme.spacingL,
-                      top: AppTheme.spacingM,
-                      bottom: AppTheme.spacingL,
-                    ),
-                    child: Row(
-                      children: [
-                        ShaderMask(
-                          shaderCallback: (bounds) {
-                            return const LinearGradient(
-                              colors: [
-                                AppTheme.accentPrimary,
-                                AppTheme.accentSecondary,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ).createShader(bounds);
-                          },
-                          child: const Text(
-                            'codenyx',
-                            style: AppTheme.hackathonTitle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  /// TIMER BANNER
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingL,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppTheme.spacingL,
-                        vertical: AppTheme.spacingL,
-                      ),
-                      decoration: AppTheme.bannerDecoration(isTimer: true),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.timer_outlined,
-                            color: AppTheme.accentPrimary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: AppTheme.spacingM),
-                          const Text(
-                            "12h 34m remaining",
-                            style: TextStyle(
-                              fontFamily: 'DM Sans',
-                              color: AppTheme.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ],
+          child: Column(
+            children: [
+              // Hackathon name header
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: AppTheme.spacingL,
+                  right: AppTheme.spacingL,
+                  top: AppTheme.spacingM,
+                  bottom: AppTheme.spacingL,
+                ),
+                child: Row(
+                  children: [
+                    ShaderMask(
+                      shaderCallback: (bounds) {
+                        return const LinearGradient(
+                          colors: [
+                            AppTheme.accentPrimary,
+                            AppTheme.accentSecondary,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds);
+                      },
+                      child: const Text(
+                        'codenyx',
+                        style: AppTheme.hackathonTitle,
                       ),
                     ),
-                  ),
-
-                  const SizedBox(height: AppTheme.spacingXL),
-
-                  /// TEAM INFO
-                  Expanded(
-                    child: SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppTheme.spacingL,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("Your Team", style: AppTheme.pageTitle),
-
-                          const SizedBox(height: AppTheme.spacingM),
-
-                          Text(teamId, style: AppTheme.cardBody),
-
-                          const SizedBox(height: AppTheme.spacingXXL),
-
-                          const Text(
-                            "TEAM MEMBERS",
-                            style: AppTheme.sectionHeader,
-                          ),
-
-                          const SizedBox(height: AppTheme.spacingL),
-
-                          members.isEmpty
-                              ? Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 40,
-                                    ),
-                                    child: Text(
-                                      "No members yet",
-                                      style: AppTheme.cardBody,
-                                    ),
-                                  ),
-                                )
-                              : Column(
-                                  children: [
-                                    ...members.asMap().entries.map(
-                                      (entry) => _buildMemberCard(
-                                        entry.value,
-                                        entry.key,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                          const SizedBox(height: 100), // Space for nav bar
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+
+              /// TIMER BANNER
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacingL,
+                    vertical: AppTheme.spacingL,
+                  ),
+                  decoration: AppTheme.bannerDecoration(isTimer: true),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.timer_outlined,
+                        color: AppTheme.accentPrimary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: AppTheme.spacingM),
+                      const Text(
+                        "12h 34m remaining",
+                        style: TextStyle(
+                          fontFamily: 'DM Sans',
+                          color: AppTheme.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: AppTheme.spacingXL),
+
+              /// TEAM INFO
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacingL,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("Your Team", style: AppTheme.pageTitle),
+
+                      const SizedBox(height: AppTheme.spacingM),
+
+                      Text(teamId, style: AppTheme.cardBody),
+
+                      const SizedBox(height: AppTheme.spacingXXL),
+
+                      const Text("TEAM MEMBERS", style: AppTheme.sectionHeader),
+
+                      const SizedBox(height: AppTheme.spacingL),
+
+                      members.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 40,
+                                ),
+                                child: Text(
+                                  "No members yet",
+                                  style: AppTheme.cardBody,
+                                ),
+                              ),
+                            )
+                          : Column(
+                              children: [
+                                ...members.asMap().entries.map(
+                                  (entry) =>
+                                      _buildMemberCard(entry.value, entry.key),
+                                ),
+                              ],
+                            ),
+                      const SizedBox(height: 100), // Space for nav bar
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
