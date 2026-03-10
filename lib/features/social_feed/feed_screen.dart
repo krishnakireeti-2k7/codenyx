@@ -77,14 +77,36 @@ class _FeedScreenState extends State<FeedScreen> {
     });
   }
 
+  Route<T> _buildSmoothRoute<T>(Widget page, {bool fullscreenDialog = false}) {
+    return PageRouteBuilder<T>(
+      fullscreenDialog: fullscreenDialog,
+      transitionDuration: const Duration(milliseconds: 280),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (context, animation, secondaryAnimation) => page,
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final curvedAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        final slideAnimation = Tween<Offset>(
+          begin: const Offset(0, 0.03),
+          end: Offset.zero,
+        ).animate(curvedAnimation);
+
+        return FadeTransition(
+          opacity: curvedAnimation,
+          child: SlideTransition(position: slideAnimation, child: child),
+        );
+      },
+    );
+  }
+
   void _openCreatePostScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CreatePostScreen(
-          teamId: widget.teamId,
-          onPostCreated: _refreshFeed,
-        ),
+    Navigator.of(context).push(
+      _buildSmoothRoute(
+        CreatePostScreen(teamId: widget.teamId, onPostCreated: _refreshFeed),
+        fullscreenDialog: true,
       ),
     );
   }
@@ -374,18 +396,14 @@ class _FeedScreenState extends State<FeedScreen> {
 
     return GestureDetector(
       onTap: () {
-  if (_userEmail == null) return;
+        if (_userEmail == null) return;
 
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => PostDetailScreen(
-        post: post,
-        userEmail: _userEmail!,
-      ),
-    ),
-  );
-},
+        Navigator.of(context).push(
+          _buildSmoothRoute(
+            PostDetailScreen(post: post, userEmail: _userEmail!),
+          ),
+        );
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: AppTheme.spacingM),
         padding: const EdgeInsets.all(AppTheme.spacingL),
@@ -556,7 +574,7 @@ class _FeedScreenState extends State<FeedScreen> {
 
               const SizedBox(height: AppTheme.spacingL),
 
-              // Add comment button 
+              // Add comment button
               GestureDetector(
                 onTap: () => _addComment(postId),
                 child: Container(
@@ -673,7 +691,6 @@ class _FeedScreenState extends State<FeedScreen> {
       ),
     );
   }
-  
 
   void _toggleLike(String postId) async {
     if (_userEmail == null) return;

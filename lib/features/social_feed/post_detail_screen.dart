@@ -212,11 +212,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
                     const SizedBox(height: AppTheme.spacingXL),
 
-                    /// POST IMAGE
-                    if (post['image_url'] != null &&
-                        (post['image_url'] as String).isNotEmpty)
-                      _buildPostImage(post),
-
                     if (post['image_url'] != null &&
                         (post['image_url'] as String).isNotEmpty)
                       const SizedBox(height: AppTheme.spacingXL),
@@ -279,13 +274,58 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Widget _buildPostContent(Map<String, dynamic> post) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
-      decoration: AppTheme.cardDecoration(borderRadius: AppTheme.radiusLarge),
-      child: Text(
-        post['content'] ?? '[Shared an image]',
-        style: AppTheme.cardBody.copyWith(height: 1.6),
-      ),
+    final String? content = post['content'];
+    final String? imageUrl = post['image_url'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        /// TEXT CONTENT (Twitter style)
+        if (content != null && content.trim().isNotEmpty)
+          Text(
+            content,
+            style: AppTheme.cardBody.copyWith(
+              fontSize: 17,
+              height: 1.6,
+              letterSpacing: 0.2,
+            ),
+          ),
+
+        /// SPACE BETWEEN TEXT AND IMAGE
+        if (content != null &&
+            content.trim().isNotEmpty &&
+            imageUrl != null &&
+            imageUrl.isNotEmpty)
+          const SizedBox(height: AppTheme.spacingL),
+
+        /// IMAGE CONTENT
+        if (imageUrl != null && imageUrl.isNotEmpty)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+            child: Image.network(
+              imageUrl,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                return Container(
+                  width: double.infinity,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceLight,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.image_not_supported_outlined,
+                      color: AppTheme.textTertiary,
+                      size: 48,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 
