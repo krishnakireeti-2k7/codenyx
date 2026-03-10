@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import '../../core/theme/app_theme.dart';
 import '../../services/supabase_service.dart';
 import '../../services/session_service.dart';
+import '../social_feed/feed_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -16,6 +17,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   List members = [];
   int _selectedIndex = 0;
 
+  late PageController _pageController;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -25,11 +27,18 @@ class _DashboardScreenState extends State<DashboardScreen>
     super.initState();
     loadTeam();
     _setupAnimations();
+    _pageController = PageController(initialPage: 0);
+
+    _pageController.addListener(() {
+      setState(() {
+        _selectedIndex = _pageController.page?.round() ?? 0;
+      });
+    });
   }
 
   void _setupAnimations() {
     _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 
@@ -38,7 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
 
     _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
           CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
         );
 
@@ -46,9 +55,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   void _onNavTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+    );
   }
 
   Future<void> loadTeam() async {
@@ -67,6 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void dispose() {
+    _pageController.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -74,194 +86,21 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: AppTheme.primaryBackground,
       body: Stack(
         children: [
-          // Full-screen gradient background
+          // Background gradient
           Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFF0F0F0F),
-                  const Color(0xFF1A1A1A),
-                  const Color(0xFF0F0F0F),
-                ],
-                stops: const [0.0, 0.5, 1.0],
-              ),
+            decoration: const BoxDecoration(
+              gradient: AppTheme.backgroundGradient,
             ),
           ),
-          // Decorative accent shapes
-          Positioned(
-            top: -100,
-            right: -100,
-            child: Container(
-              width: 300,
-              height: 300,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withOpacity(0.1),
-                    Colors.white.withOpacity(0.02),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -80,
-            left: -80,
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withOpacity(0.08),
-                    Colors.white.withOpacity(0.01),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // Main content
-          SafeArea(
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: Column(
-                  children: [
-                    /// TIMER BANNER
-                    Container(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.white.withOpacity(0.12),
-                            Colors.white.withOpacity(0.06),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.15),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.timer, color: Colors.grey[300], size: 24),
-                          const SizedBox(width: 12),
-                          Text(
-                            "12h 34m remaining",
-                            style: TextStyle(
-                              color: Colors.grey[200],
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
 
-                    const SizedBox(height: 12),
-
-                    /// TEAM INFO
-                    Expanded(
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              "Your Team",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 32,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            Text(
-                              teamId,
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-
-                            const SizedBox(height: 32),
-
-                            Text(
-                              "Team Members",
-                              style: TextStyle(
-                                color: Colors.grey[300],
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            members.isEmpty
-                                ? Center(
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 40,
-                                      ),
-                                      child: Text(
-                                        "No members yet",
-                                        style: TextStyle(
-                                          color: Colors.grey[500],
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                : Column(
-                                    children: [
-                                      ...members.asMap().entries.map(
-                                        (entry) => _buildMemberCard(
-                                          entry.value,
-                                          entry.key,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+          // PageView for smooth navigation
+          PageView(
+            controller: _pageController,
+            physics: const BouncingScrollPhysics(),
+            children: [_buildDashboardPage(), const FeedScreen()],
           ),
 
           /// BOTTOM NAVIGATION BAR
@@ -270,45 +109,21 @@ class _DashboardScreenState extends State<DashboardScreen>
             left: 0,
             right: 0,
             child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black.withOpacity(0.4),
-                    Colors.black.withOpacity(0.9),
-                  ],
-                ),
-              ),
+              decoration: AppTheme.navBarDecoration(),
               padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 12,
-                bottom: MediaQuery.of(context).padding.bottom + 12,
+                left: AppTheme.spacingL,
+                right: AppTheme.spacingL,
+                top: AppTheme.spacingM,
+                bottom:
+                    MediaQuery.of(context).padding.bottom + AppTheme.spacingM,
               ),
               child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.white.withOpacity(0.1),
-                      Colors.white.withOpacity(0.05),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.15),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.4),
-                      blurRadius: 20,
-                      offset: const Offset(0, -4),
-                    ),
-                  ],
+                decoration: AppTheme.cardDecoration(
+                  borderRadius: AppTheme.radiusLarge,
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppTheme.spacingM,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -332,6 +147,145 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  Widget _buildDashboardPage() {
+    return Stack(
+      children: [
+        // Main content
+        SafeArea(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: Column(
+                children: [
+                  // Hackathon name header
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: AppTheme.spacingL,
+                      right: AppTheme.spacingL,
+                      top: AppTheme.spacingM,
+                      bottom: AppTheme.spacingL,
+                    ),
+                    child: Row(
+                      children: [
+                        ShaderMask(
+                          shaderCallback: (bounds) {
+                            return const LinearGradient(
+                              colors: [
+                                AppTheme.accentPrimary,
+                                AppTheme.accentSecondary,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ).createShader(bounds);
+                          },
+                          child: const Text(
+                            'codenyx',
+                            style: AppTheme.hackathonTitle,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  /// TIMER BANNER
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spacingL,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingL,
+                        vertical: AppTheme.spacingL,
+                      ),
+                      decoration: AppTheme.bannerDecoration(isTimer: true),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.timer_outlined,
+                            color: AppTheme.accentPrimary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: AppTheme.spacingM),
+                          const Text(
+                            "12h 34m remaining",
+                            style: TextStyle(
+                              fontFamily: 'DM Sans',
+                              color: AppTheme.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: AppTheme.spacingXL),
+
+                  /// TEAM INFO
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingL,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Your Team", style: AppTheme.pageTitle),
+
+                          const SizedBox(height: AppTheme.spacingM),
+
+                          Text(teamId, style: AppTheme.cardBody),
+
+                          const SizedBox(height: AppTheme.spacingXXL),
+
+                          const Text(
+                            "TEAM MEMBERS",
+                            style: AppTheme.sectionHeader,
+                          ),
+
+                          const SizedBox(height: AppTheme.spacingL),
+
+                          members.isEmpty
+                              ? Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 40,
+                                    ),
+                                    child: Text(
+                                      "No members yet",
+                                      style: AppTheme.cardBody,
+                                    ),
+                                  ),
+                                )
+                              : Column(
+                                  children: [
+                                    ...members.asMap().entries.map(
+                                      (entry) => _buildMemberCard(
+                                        entry.value,
+                                        entry.key,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                          const SizedBox(height: 100), // Space for nav bar
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildNavBarItem({
     required IconData icon,
     required String label,
@@ -342,42 +296,41 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {
-          _onNavTapped(index);
-          if (index == 1) {
-            context.push('/feed');
-          }
-        },
-        borderRadius: BorderRadius.circular(12),
+        onTap: () => _onNavTapped(index),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTheme.spacingL,
+            vertical: AppTheme.spacingM,
+          ),
           decoration: BoxDecoration(
             gradient: isSelected
                 ? LinearGradient(
                     colors: [
-                      Colors.white.withOpacity(0.2),
-                      Colors.white.withOpacity(0.1),
+                      AppTheme.accentPrimary.withOpacity(0.2),
+                      AppTheme.accentSecondary.withOpacity(0.15),
                     ],
                   )
                 : null,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
-                color: isSelected ? Colors.white : Colors.grey[500],
-                size: 24,
+                color: isSelected
+                    ? AppTheme.accentPrimary
+                    : AppTheme.textSecondary,
+                size: 22,
               ),
               const SizedBox(height: 4),
               Text(
                 label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.grey[500],
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  letterSpacing: 0.3,
+                style: AppTheme.navLabel.copyWith(
+                  color: isSelected
+                      ? AppTheme.accentPrimary
+                      : AppTheme.textSecondary,
                 ),
               ),
             ],
@@ -389,72 +342,49 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildMemberCard(dynamic member, int index) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.08),
-            Colors.white.withOpacity(0.04),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.12), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+      margin: const EdgeInsets.only(bottom: AppTheme.spacingM),
+      padding: const EdgeInsets.all(AppTheme.spacingL),
+      decoration: AppTheme.cardDecoration(),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(AppTheme.spacingS),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: AppTheme.accentPrimary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
             ),
-            child: Icon(Icons.person, color: Colors.grey[300], size: 22),
+            child: Icon(
+              Icons.person_outline,
+              color: AppTheme.accentPrimary,
+              size: 20,
+            ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: AppTheme.spacingL),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  member['email'] ?? 'Unknown',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
-                  ),
-                ),
+                Text(member['email'] ?? 'Unknown', style: AppTheme.cardTitle),
                 const SizedBox(height: 4),
-                Text(
-                  "Team Member",
-                  style: TextStyle(
-                    color: Colors.grey[500],
-                    fontSize: 13,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
+                Text("Team Member", style: AppTheme.metaText),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.spacingM,
+              vertical: AppTheme.spacingS,
             ),
-            child: Text(
+            decoration: BoxDecoration(
+              color: AppTheme.accentPrimary.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+            ),
+            child: const Text(
               "Active",
               style: TextStyle(
-                color: Colors.grey[300],
-                fontSize: 12,
+                fontFamily: 'DM Sans',
+                color: AppTheme.accentPrimary,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
             ),
