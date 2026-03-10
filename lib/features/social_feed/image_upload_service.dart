@@ -65,6 +65,7 @@ class ImageUploadService {
       await SupabaseService.client.storage
           .from(storageBucket)
           .upload(fileName, imageFile);
+          print("Uploading to bucket: $storageBucket");
 
       // Get public URL
       final String publicUrl = SupabaseService.client.storage

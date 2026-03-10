@@ -37,13 +37,21 @@ class FeedRepository {
       final response = await SupabaseService.client
           .from('posts')
           .select(
-            'id, user_email, team_id, content, image_url, created_at, '
-            'likes(count).count().as(likes_count)',
+            'id, user_email, team_id, content, image_url, created_at, likes(count)',
           )
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 
-      return List<Map<String, dynamic>>.from(response);
+      final posts = List<Map<String, dynamic>>.from(response);
+
+      for (var post in posts) {
+        post['likes_count'] =
+            (post['likes'] != null && post['likes'].isNotEmpty)
+            ? post['likes'][0]['count']
+            : 0;
+      }
+
+      return posts;
     } catch (e) {
       print('Error fetching posts: $e');
       rethrow;

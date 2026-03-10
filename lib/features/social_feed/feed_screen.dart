@@ -1,3 +1,4 @@
+import 'package:codenyx/features/social_feed/post_detail_screen.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/session_service.dart';
@@ -20,6 +21,8 @@ class _FeedScreenState extends State<FeedScreen> {
   List<Map<String, dynamic>> _allPosts = [];
   String? _userEmail;
   bool _isLoadingMore = false;
+  Map<String, bool> _expandedPosts = {}; // Track which posts are expanded
+  Map<String, List<Map<String, dynamic>>> _postComments = {}; // Cache comments
 
   @override
   void initState() {
@@ -86,435 +89,25 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
+  void _togglePostExpanded(String postId) async {
+    setState(() {
+      _expandedPosts[postId] = !(_expandedPosts[postId] ?? false);
+    });
 
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        SafeArea(
-          child: FutureBuilder<List<Map<String, dynamic>>>(
-            future: _postsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      AppTheme.accentPrimary,
-                    ),
-                  ),
-                );
-              }
-
-              if (snapshot.hasError) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 48,
-                        color: AppTheme.textTertiary,
-                      ),
-                      const SizedBox(height: AppTheme.spacingL),
-                      Text('Error loading feed', style: AppTheme.cardTitle),
-                      const SizedBox(height: AppTheme.spacingM),
-                      GestureDetector(
-                        onTap: _refreshFeed,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppTheme.spacingL,
-                            vertical: AppTheme.spacingM,
-                          ),
-                          decoration: AppTheme.cardDecoration(),
-                          child: const Text(
-                            'Retry',
-                            style: TextStyle(
-                              fontFamily: 'DM Sans',
-                              color: AppTheme.accentPrimary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                _allPosts = [];
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.feed_outlined,
-                        size: 48,
-                        color: AppTheme.textTertiary,
-                      ),
-                      const SizedBox(height: AppTheme.spacingL),
-                      Text(
-                        'No posts yet',
-                        style: AppTheme.pageTitle.copyWith(fontSize: 24),
-                      ),
-                      const SizedBox(height: AppTheme.spacingM),
-                      Text(
-                        'Be the first to share your progress!',
-                        style: AppTheme.cardBody,
-                      ),
-                      const SizedBox(height: AppTheme.spacingXL),
-                      GestureDetector(
-                        onTap: _openCreatePostScreen,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppTheme.spacingL,
-                            vertical: AppTheme.spacingM,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusLarge,
-                            ),
-                            gradient: LinearGradient(
-                              colors: [
-                                AppTheme.accentPrimary.withOpacity(0.2),
-                                AppTheme.accentSecondary.withOpacity(0.1),
-                              ],
-                            ),
-                            border: Border.all(
-                              color: AppTheme.accentPrimary.withOpacity(0.4),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.add_circle_outline,
-                                color: AppTheme.accentPrimary,
-                              ),
-                              const SizedBox(width: AppTheme.spacingM),
-                              const Text(
-                                'Create First Post',
-                                style: TextStyle(
-                                  fontFamily: 'DM Sans',
-                                  color: AppTheme.accentPrimary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
-              _allPosts = snapshot.data!;
-
-              return RefreshIndicator(
-                onRefresh: _refreshFeed,
-                color: AppTheme.accentPrimary,
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(
-                    AppTheme.spacingL,
-                    AppTheme.spacingM,
-                    AppTheme.spacingL,
-                    120,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildBrandHeader(),
-                      const SizedBox(height: AppTheme.spacingL),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text("Social Feed", style: AppTheme.pageTitle),
-                          GestureDetector(
-                            onTap: _openCreatePostScreen,
-                            child: Container(
-                              padding: const EdgeInsets.all(AppTheme.spacingM),
-                              decoration: BoxDecoration(
-                                color: AppTheme.accentPrimary.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(
-                                  AppTheme.radiusMedium,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.add,
-                                color: AppTheme.accentPrimary,
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppTheme.spacingS),
-                      Text(
-                        "Stay updated with your team",
-                        style: AppTheme.cardBody,
-                      ),
-                      const SizedBox(height: AppTheme.spacingXL),
-                      const Text(
-                        "RECENT ACTIVITY",
-                        style: AppTheme.sectionHeader,
-                      ),
-                      const SizedBox(height: AppTheme.spacingL),
-                      ..._allPosts.map((post) => _buildPostCard(post)),
-                      if (_isLoadingMore)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: AppTheme.spacingL,
-                          ),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                AppTheme.accentPrimary,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBrandHeader() {
-    return Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.borderColor, width: 1),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(11),
-            child: Image.asset('assets/logo/gdg-logo.png', fit: BoxFit.cover),
-          ),
-        ),
-        const SizedBox(width: AppTheme.spacingM),
-        ShaderMask(
-          shaderCallback: (bounds) {
-            return const LinearGradient(
-              colors: [
-                AppTheme.colorRed,
-                AppTheme.colorOrange,
-                AppTheme.colorYellow,
-                AppTheme.colorGreen,
-                AppTheme.colorBlue,
-                AppTheme.colorPurple,
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ).createShader(bounds);
-          },
-          child: const Text('codenyx', style: AppTheme.hackathonTitle),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPostCard(Map<String, dynamic> post) {
-    final isHighlighted =
-        post['likes_count'] != null && post['likes_count'] > 0;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppTheme.spacingM),
-      padding: const EdgeInsets.all(AppTheme.spacingL),
-      decoration: isHighlighted
-          ? AppTheme.accentCardDecoration()
-          : AppTheme.cardDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Post header with author
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppTheme.accentPrimary.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                ),
-                child: Center(
-                  child: Text(
-                    (post['user_email'] as String)[0].toUpperCase(),
-                    style: const TextStyle(
-                      fontFamily: 'DM Sans',
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.accentPrimary,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppTheme.spacingM),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      post['user_email'] ?? 'Unknown',
-                      style: AppTheme.cardTitle.copyWith(fontSize: 14),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _formatTime(post['created_at']),
-                      style: AppTheme.metaText,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: AppTheme.spacingL),
-
-          // Post content
-          Text(post['content'] ?? '', style: AppTheme.cardBody),
-
-          const SizedBox(height: AppTheme.spacingL),
-
-          // Post image if exists
-          if (post['image_url'] != null &&
-              (post['image_url'] as String).isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppTheme.spacingL),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                child: Image.network(
-                  post['image_url'],
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: 200,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: double.infinity,
-                      height: 200,
-                      color: AppTheme.surfaceLight,
-                      child: const Center(
-                        child: Icon(
-                          Icons.image_not_supported_outlined,
-                          color: AppTheme.textTertiary,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-
-          // Post actions (like, comment)
-          Row(
-            children: [
-              GestureDetector(
-                onTap: _userEmail != null
-                    ? () => _toggleLike(post['id'])
-                    : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spacingM,
-                    vertical: AppTheme.spacingS,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentPrimary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.favorite_border,
-                        color: AppTheme.accentPrimary,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${post['likes_count'] ?? 0}',
-                        style: AppTheme.metaText.copyWith(
-                          color: AppTheme.accentPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppTheme.spacingM),
-              GestureDetector(
-                onTap: () => _showCommentDialog(post['id']),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spacingM,
-                    vertical: AppTheme.spacingS,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentSecondary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.chat_bubble_outline,
-                        color: AppTheme.accentSecondary,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Comment',
-                        style: AppTheme.metaText.copyWith(
-                          color: AppTheme.accentSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _toggleLike(String postId) async {
-    if (_userEmail == null) return;
-
-    try {
-      final hasLiked = await FeedRepository.hasUserLikedPost(
-        postId,
-        _userEmail!,
-      );
-
-      if (hasLiked) {
-        await FeedRepository.unlikePost(postId, _userEmail!);
-      } else {
-        await FeedRepository.likePost(postId, _userEmail!);
+    // Load comments if expanding and not already loaded
+    if (_expandedPosts[postId]! && !_postComments.containsKey(postId)) {
+      try {
+        final comments = await FeedRepository.getComments(postId);
+        setState(() {
+          _postComments[postId] = comments;
+        });
+      } catch (e) {
+        print('Error loading comments: $e');
       }
-
-      _refreshFeed();
-    } catch (e) {
-      print('Error toggling like: $e');
     }
   }
 
-  void _showCommentDialog(String postId) {
+  void _addComment(String postId) async {
     final commentController = TextEditingController();
 
     showDialog(
@@ -525,6 +118,7 @@ class _FeedScreenState extends State<FeedScreen> {
         content: TextField(
           controller: commentController,
           style: AppTheme.cardBody,
+          autofocus: true,
           decoration: InputDecoration(
             hintText: 'Your comment...',
             hintStyle: AppTheme.metaText,
@@ -554,7 +148,11 @@ class _FeedScreenState extends State<FeedScreen> {
                   );
                   if (mounted) {
                     Navigator.pop(context);
-                    _refreshFeed();
+                    // Reload comments
+                    final comments = await FeedRepository.getComments(postId);
+                    setState(() {
+                      _postComments[postId] = comments;
+                    });
                   }
                 } catch (e) {
                   print('Error adding comment: $e');
@@ -569,6 +167,543 @@ class _FeedScreenState extends State<FeedScreen> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _postsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppTheme.accentPrimary,
+                ),
+              ),
+            );
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Error loading feed: ${snapshot.error}',
+                style: AppTheme.cardBody,
+              ),
+            );
+          }
+
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.feed_outlined,
+                    size: 48,
+                    color: AppTheme.textTertiary,
+                  ),
+                  const SizedBox(height: AppTheme.spacingL),
+                  Text(
+                    'No posts yet',
+                    style: AppTheme.pageTitle.copyWith(fontSize: 24),
+                  ),
+                  const SizedBox(height: AppTheme.spacingM),
+                  Text(
+                    'Be the first to share your progress!',
+                    style: AppTheme.cardBody,
+                  ),
+                  const SizedBox(height: AppTheme.spacingXL),
+                  GestureDetector(
+                    onTap: _openCreatePostScreen,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingL,
+                        vertical: AppTheme.spacingM,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusLarge,
+                        ),
+                        border: Border.all(
+                          color: AppTheme.accentPrimary.withOpacity(0.4),
+                          width: 1.5,
+                        ),
+                        gradient: LinearGradient(
+                          colors: [
+                            AppTheme.accentPrimary.withOpacity(0.2),
+                            AppTheme.accentSecondary.withOpacity(0.1),
+                          ],
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.add_circle_outline,
+                            color: AppTheme.accentPrimary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: AppTheme.spacingM),
+                          Text(
+                            'Create First Post',
+                            style: AppTheme.cardTitle.copyWith(
+                              color: AppTheme.accentPrimary,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          _allPosts = snapshot.data!;
+
+          return RefreshIndicator(
+            onRefresh: _refreshFeed,
+            color: AppTheme.accentPrimary,
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(
+                AppTheme.spacingL,
+                AppTheme.spacingM,
+                AppTheme.spacingL,
+                120,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildFeedHeader(),
+                  const SizedBox(height: AppTheme.spacingL),
+                  _buildCreatePostButton(),
+                  const SizedBox(height: AppTheme.spacingXL),
+                  const Text("RECENT ACTIVITY", style: AppTheme.sectionHeader),
+                  const SizedBox(height: AppTheme.spacingL),
+                  ..._allPosts.map((post) => _buildPostCard(post)),
+                  if (_isLoadingMore)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppTheme.spacingL,
+                      ),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppTheme.accentPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildFeedHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Social Feed", style: AppTheme.pageTitle),
+        const SizedBox(height: AppTheme.spacingS),
+        Text("Stay updated with your team", style: AppTheme.cardBody),
+      ],
+    );
+  }
+
+  Widget _buildCreatePostButton() {
+    return GestureDetector(
+      onTap: _openCreatePostScreen,
+      child: Container(
+        padding: const EdgeInsets.all(AppTheme.spacingL),
+        decoration: AppTheme.cardDecoration(borderRadius: AppTheme.radiusLarge),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppTheme.accentPrimary.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+              ),
+              child: Center(
+                child: Icon(Icons.add, color: AppTheme.accentPrimary, size: 22),
+              ),
+            ),
+            const SizedBox(width: AppTheme.spacingL),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Share your progress', style: AppTheme.cardTitle),
+                  const SizedBox(height: 4),
+                  Text('Text, image, or both', style: AppTheme.metaText),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 16,
+              color: AppTheme.textSecondary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPostCard(Map<String, dynamic> post) {
+    final postId = post['id'];
+    final isExpanded = _expandedPosts[postId] ?? false;
+    final isHighlighted =
+        post['likes_count'] != null && post['likes_count'] > 0;
+
+    return GestureDetector(
+      onTap: () {
+  if (_userEmail == null) return;
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => PostDetailScreen(
+        post: post,
+        userEmail: _userEmail!,
+      ),
+    ),
+  );
+},
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppTheme.spacingM),
+        padding: const EdgeInsets.all(AppTheme.spacingL),
+        decoration: isHighlighted
+            ? AppTheme.accentCardDecoration()
+            : AppTheme.cardDecoration(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Post header with author
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentPrimary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  ),
+                  child: Center(
+                    child: Text(
+                      (post['user_email'] as String)[0].toUpperCase(),
+                      style: const TextStyle(
+                        fontFamily: 'DM Sans',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.accentPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingM),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post['user_email'] ?? 'Unknown',
+                        style: AppTheme.cardTitle.copyWith(fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatTime(post['created_at']),
+                        style: AppTheme.metaText,
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  isExpanded ? Icons.expand_less : Icons.expand_more,
+                  color: AppTheme.textSecondary,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: AppTheme.spacingL),
+
+            // Post content
+            Text(post['content'] ?? '', style: AppTheme.cardBody),
+
+            const SizedBox(height: AppTheme.spacingL),
+
+            // Post image if exists
+            if (post['image_url'] != null &&
+                (post['image_url'] as String).isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppTheme.spacingL),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  child: Image.network(
+                    post['image_url'],
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: 200,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: double.infinity,
+                        height: 200,
+                        color: AppTheme.surfaceLight,
+                        child: const Center(
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            color: AppTheme.textTertiary,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+
+            // Post actions (like, comment) - always visible
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: _userEmail != null
+                      ? () => _toggleLike(post['id'])
+                      : null,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spacingM,
+                      vertical: AppTheme.spacingS,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentPrimary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.favorite_border,
+                          color: AppTheme.accentPrimary,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${post['likes_count'] ?? 0}',
+                          style: AppTheme.metaText.copyWith(
+                            color: AppTheme.accentPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingM),
+                GestureDetector(
+                  onTap: () => _togglePostExpanded(postId),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spacingM,
+                      vertical: AppTheme.spacingS,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentSecondary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          color: AppTheme.accentSecondary,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Expand',
+                          style: AppTheme.metaText.copyWith(
+                            color: AppTheme.accentSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // Expanded section - comments
+            if (isExpanded) ...[
+              const SizedBox(height: AppTheme.spacingL),
+              Divider(color: AppTheme.borderColor),
+              const SizedBox(height: AppTheme.spacingL),
+
+              // Comments section
+              _buildCommentsSection(postId),
+
+              const SizedBox(height: AppTheme.spacingL),
+
+              // Add comment button 
+              GestureDetector(
+                onTap: () => _addComment(postId),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppTheme.spacingM,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentPrimary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_comment_outlined,
+                        color: AppTheme.accentPrimary,
+                        size: 18,
+                      ),
+                      const SizedBox(width: AppTheme.spacingS),
+                      Text(
+                        'Add a comment',
+                        style: AppTheme.metaText.copyWith(
+                          color: AppTheme.accentPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCommentsSection(String postId) {
+    final comments = _postComments[postId] ?? [];
+
+    if (comments.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingL),
+          child: Text(
+            'No comments yet. Be the first!',
+            style: AppTheme.metaText,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${comments.length} Comment${comments.length != 1 ? 's' : ''}',
+          style: AppTheme.sectionHeader,
+        ),
+        const SizedBox(height: AppTheme.spacingM),
+        ...comments.map((comment) => _buildCommentItem(comment)),
+      ],
+    );
+  }
+
+  Widget _buildCommentItem(Map<String, dynamic> comment) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spacingM),
+      padding: const EdgeInsets.all(AppTheme.spacingM),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceLight.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AppTheme.accentPrimary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                ),
+                child: Center(
+                  child: Text(
+                    (comment['user_email'] as String)[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontFamily: 'DM Sans',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.accentPrimary,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppTheme.spacingM),
+              Expanded(
+                child: Text(
+                  comment['user_email'] ?? 'Unknown',
+                  style: AppTheme.metaText.copyWith(fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacingS),
+          Text(
+            comment['comment'] ?? '',
+            style: AppTheme.cardBody.copyWith(fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+  
+
+  void _toggleLike(String postId) async {
+    if (_userEmail == null) return;
+
+    try {
+      final index = _allPosts.indexWhere((p) => p['id'] == postId);
+      if (index == -1) return;
+
+      final post = _allPosts[index];
+
+      final hasLiked = await FeedRepository.hasUserLikedPost(
+        postId,
+        _userEmail!,
+      );
+
+      // Optimistically update UI
+      setState(() {
+        final currentLikes = post['likes_count'] ?? 0;
+        post['likes_count'] = hasLiked ? currentLikes - 1 : currentLikes + 1;
+      });
+
+      // Update database
+      if (hasLiked) {
+        await FeedRepository.unlikePost(postId, _userEmail!);
+      } else {
+        await FeedRepository.likePost(postId, _userEmail!);
+      }
+    } catch (e) {
+      print('Error toggling like: $e');
+    }
   }
 
   String _formatTime(String? timestamp) {
