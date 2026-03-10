@@ -1,4 +1,3 @@
-import 'package:codenyx/features/social_feed/feed_screen.dart';
 import 'package:go_router/go_router.dart';
 import '../features/auth/team_join_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
@@ -25,6 +24,7 @@ final GoRouter appRouter = GoRouter(
       path: '/dashboard',
       builder: (context, state) => const DashboardScreen(),
     ),
-    GoRoute(path: '/feed', builder: (context, state) => const FeedScreen()),
+    // FeedScreen is now part of DashboardScreen via PageView
+    // No separate /feed route needed
   ],
 );

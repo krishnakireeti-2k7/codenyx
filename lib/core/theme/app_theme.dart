@@ -1,50 +1,88 @@
 import 'package:flutter/material.dart';
 
-/// Sleek, refined theme system for CodeNyx hackathon platform
-/// Minimalist aesthetic with precision spacing and typography
+/// CodeNyx Hackathon Theme
+/// Bold, vibrant design with rainbow gradients and black background
+/// Inspired by the official CodeNyx website aesthetic
 class AppTheme {
   // ============ Color Palette ============
-  // Refined dark mode with subtle accents
-  static const Color primaryBackground = Color(0xFF0A0E27); // Deep navy
+  // Pure black background like the website
+  static const Color primaryBackground = Color(0xFF000000); // Pure black
   static const Color secondaryBackground = Color(
-    0xFF111B3F,
-  ); // Slightly lighter navy
-  static const Color surfaceLight = Color(0xFF1A2847); // Surface highlights
-  static const Color accentPrimary = Color(0xFF00D9FF); // Cyan accent
-  static const Color accentSecondary = Color(0xFF6366F1); // Indigo
-  static const Color accentTertiary = Color(0xFF8B5CF6); // Purple
+    0xFF0A0A0A,
+  ); // Slightly lighter black
+  static const Color surfaceLight = Color(0xFF1A1A1A); // Dark surface
+
+  // Rainbow/Vibrant Colors - TONED DOWN for balance
+  static const Color colorRed = Color(0xFFCC5555); // Muted red
+  static const Color colorOrange = Color(0xFFDD7744); // Softer orange
+  static const Color colorYellow = Color(0xFFCCBB33); // Muted yellow
+  static const Color colorGreen = Color(0xFF44BB66); // Softer green
+  static const Color colorBlue = Color(0xFF4488DD); // Softer blue
+  static const Color colorPurple = Color(0xFFAA66CC); // Softer purple
+  static const Color colorPink = Color(0xFFCC6688); // Softer pink
+
+  // Accent colors - REFINED
+  static const Color accentPrimary = Color(0xFFDD6655); // Warm muted red/coral
+  static const Color accentSecondary = Color(0xFF55BB88); // Soft teal green
+  static const Color accentTertiary = Color(0xFF9966DD); // Soft purple
+
   static const Color textPrimary = Color(0xFFFFFFFF); // Pure white
-  static const Color textSecondary = Color(0xFF94A3B8); // Slate gray
-  static const Color textTertiary = Color(0xFF64748B); // Darker slate
-  static const Color borderColor = Color(0xFF1E293B); // Subtle borders
-  static const Color dividerColor = Color(0xFF0F172A); // Very subtle dividers
+  static const Color textSecondary = Color(0xFFC0C0C0); // Light gray
+  static const Color textTertiary = Color(0xFF808080); // Medium gray
+  static const Color borderColor = Color(0xFF333333); // Dark borders
+  static const Color dividerColor = Color(0xFF1A1A1A); // Dark dividers
 
   // ============ Gradients ============
-  static const LinearGradient backgroundGradient = LinearGradient(
+  // Bold rainbow gradient matching website
+  static const LinearGradient rainbowGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [primaryBackground, secondaryBackground, Color(0xFF0D1628)],
-    stops: [0.0, 0.5, 1.0],
-  );
-
-  static const LinearGradient cardGradient = LinearGradient(
     colors: [
-      Color(0x14FFFFFF), // 8% white opacity
-      Color(0x08FFFFFF), // 3% white opacity
+      colorRed,
+      colorOrange,
+      colorYellow,
+      colorGreen,
+      colorBlue,
+      colorPurple,
     ],
   );
 
+  // Softer background gradient (mostly black)
+  static const LinearGradient backgroundGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [primaryBackground, secondaryBackground, primaryBackground],
+  );
+
+  // Card gradient - dark with subtle light overlay
+  static const LinearGradient cardGradient = LinearGradient(
+    colors: [
+      Color(0x20FFFFFF), // 12% white overlay
+      Color(0x10FFFFFF), // 6% white overlay
+    ],
+  );
+
+  // Rainbow accent gradient
   static const LinearGradient accentGradient = LinearGradient(
-    colors: [accentPrimary, accentSecondary],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      colorRed,
+      colorOrange,
+      colorYellow,
+      colorGreen,
+      colorBlue,
+      colorPurple,
+    ],
   );
 
   // ============ Text Styles ============
-  /// Hackathon name display
+  /// Hackathon name display - with rainbow colors
   static const TextStyle hackathonTitle = TextStyle(
     fontFamily: 'DM Sans',
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: FontWeight.w700,
-    color: accentPrimary,
+    color: colorRed,
     letterSpacing: 0.5,
   );
 
@@ -58,12 +96,12 @@ class AppTheme {
     height: 1.2,
   );
 
-  /// Section headers
+  /// Section headers - softer color
   static const TextStyle sectionHeader = TextStyle(
     fontFamily: 'DM Sans',
     fontSize: 14,
     fontWeight: FontWeight.w600,
-    color: textSecondary,
+    color: accentPrimary,
     letterSpacing: 0.5,
   );
 
@@ -122,13 +160,13 @@ class AppTheme {
     double borderRadius = radiusMedium,
   }) {
     return BoxDecoration(
-      color: surfaceLight.withOpacity(0.5),
+      color: surfaceLight.withOpacity(0.6),
       borderRadius: BorderRadius.circular(borderRadius),
       border: Border.all(color: borderColor, width: 0.8),
       boxShadow: elevated
           ? [
               BoxShadow(
-                color: Colors.black.withOpacity(0.15),
+                color: Colors.black.withOpacity(0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -141,25 +179,30 @@ class AppTheme {
     double borderRadius = radiusMedium,
   }) {
     return BoxDecoration(
-      color: accentPrimary.withOpacity(0.08),
+      gradient: LinearGradient(
+        colors: [
+          accentPrimary.withOpacity(0.08),
+          accentSecondary.withOpacity(0.06),
+        ],
+      ),
       borderRadius: BorderRadius.circular(borderRadius),
       border: Border.all(color: accentPrimary.withOpacity(0.25), width: 1),
     );
   }
 
   static BoxDecoration navBarDecoration() {
-    return BoxDecoration(color: Colors.black.withOpacity(0.5));
+    return BoxDecoration(color: primaryBackground.withOpacity(0.95));
   }
 
   static BoxDecoration bannerDecoration({bool isTimer = false}) {
     return BoxDecoration(
       color: isTimer
-          ? accentPrimary.withOpacity(0.1)
-          : surfaceLight.withOpacity(0.5),
+          ? accentPrimary.withOpacity(0.12)
+          : surfaceLight.withOpacity(0.6),
       borderRadius: BorderRadius.circular(radiusLarge),
       border: Border.all(
-        color: isTimer ? accentPrimary.withOpacity(0.25) : borderColor,
-        width: 1,
+        color: isTimer ? accentPrimary.withOpacity(0.4) : borderColor,
+        width: isTimer ? 1.5 : 0.8,
       ),
     );
   }
