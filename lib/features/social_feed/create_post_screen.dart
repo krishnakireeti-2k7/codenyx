@@ -63,10 +63,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   }
 
   Future<void> _createPost() async {
-    if (_contentController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please write something!')));
+    // UPDATED: Allow either text OR image (or both)
+    if (_contentController.text.isEmpty && _selectedImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please write something or add an image!'),
+        ),
+      );
       return;
     }
 
@@ -93,11 +96,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         );
       }
 
-      // Create post
+      // Create post with either text, image, or both
       await FeedRepository.createPost(
         userEmail: _userEmail!,
         teamId: widget.teamId,
-        content: _contentController.text,
+        content: _contentController.text.isEmpty
+            ? ''
+            : _contentController.text, // Allow empty content
         imageUrl: imageUrl,
       );
 

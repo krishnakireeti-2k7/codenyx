@@ -57,6 +57,7 @@ class FeedRepository {
       rethrow;
     }
   }
+
   static Future<void> deleteComment(String commentId) async {
     try {
       await SupabaseService.client
@@ -185,10 +186,61 @@ class FeedRepository {
     }
   }
 
-  /// Delete a post (only by author)
-  static Future<void> deletePost(String postId) async {
+  /// Check if post belongs to user (authorization check)
+  static Future<bool> isPostAuthor(String postId, String userEmail) async {
     try {
+      final response = await SupabaseService.client
+          .from('posts')
+          .select('user_email')
+          .eq('id', postId)
+          .single();
+
+      return response['user_email'] == userEmail;
+    } catch (e) {
+      print('Error checking post author: $e');
+      return false;
+    }
+  }
+
+  /// Delete image from Supabase Storage
+  static Future<void> deleteImageFromStorage(String imageUrl) async {
+    try {
+      // Extract file name from URL
+      // URL format: https://xxx.supabase.co/storage/v1/object/public/feed-images/filename.jpg
+      final fileName = imageUrl.split('/').last;
+
+      await SupabaseService.client.storage.from('feed-images').remove([
+        fileName,
+      ]);
+
+      print('Image deleted from storage: $fileName');
+    } catch (e) {
+      print('Error deleting image from storage: $e');
+      // Don't rethrow - continue even if image deletion fails
+    }
+  }
+
+  /// Delete a post and its associated image
+  static Future<void> deletePost(String postId, {String? imageUrl}) async {
+    try {
+      // Delete image from storage if it exists
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        await deleteImageFromStorage(imageUrl);
+      }
+
+      // Delete all likes associated with the post
+      await SupabaseService.client.from('likes').delete().eq('post_id', postId);
+
+      // Delete all comments associated with the post
+      await SupabaseService.client
+          .from('comments')
+          .delete()
+          .eq('post_id', postId);
+
+      // Delete the post itself
       await SupabaseService.client.from('posts').delete().eq('id', postId);
+
+      print('Post deleted successfully: $postId');
     } catch (e) {
       print('Error deleting post: $e');
       rethrow;

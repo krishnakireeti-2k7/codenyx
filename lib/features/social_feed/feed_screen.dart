@@ -21,8 +21,9 @@ class _FeedScreenState extends State<FeedScreen> {
   List<Map<String, dynamic>> _allPosts = [];
   String? _userEmail;
   bool _isLoadingMore = false;
-  Map<String, bool> _expandedPosts = {}; // Track which posts are expanded
-  Map<String, List<Map<String, dynamic>>> _postComments = {}; // Cache comments
+  Map<String, bool> _expandedPosts = {};
+  Map<String, List<Map<String, dynamic>>> _postComments = {};
+  Map<String, bool> _deletingPosts = {};
 
   @override
   void initState() {
@@ -116,7 +117,6 @@ class _FeedScreenState extends State<FeedScreen> {
       _expandedPosts[postId] = !(_expandedPosts[postId] ?? false);
     });
 
-    // Load comments if expanding and not already loaded
     if (_expandedPosts[postId]! && !_postComments.containsKey(postId)) {
       try {
         final comments = await FeedRepository.getComments(postId);
@@ -170,7 +170,6 @@ class _FeedScreenState extends State<FeedScreen> {
                   );
                   if (mounted) {
                     Navigator.pop(context);
-                    // Reload comments
                     final comments = await FeedRepository.getComments(postId);
                     setState(() {
                       _postComments[postId] = comments;
@@ -189,6 +188,105 @@ class _FeedScreenState extends State<FeedScreen> {
         ],
       ),
     );
+  }
+
+  /// DELETE POST WITH CONFIRMATION
+  void _deletePost(String postId, String? imageUrl) async {
+    if (_userEmail == null) return;
+
+    // Check authorization
+    final isAuthor = await FeedRepository.isPostAuthor(postId, _userEmail!);
+    if (!isAuthor) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can only delete your own posts'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Show confirmation
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceLight,
+        title: const Text('Delete Post?', style: AppTheme.cardTitle),
+        content: Text(
+          'This action cannot be undone.',
+          style: AppTheme.cardBody,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: AppTheme.cardTitle.copyWith(color: AppTheme.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _performDeletePost(postId, imageUrl);
+            },
+            child: Text(
+              'Delete',
+              style: AppTheme.cardTitle.copyWith(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// PERFORM ACTUAL DELETION
+  Future<void> _performDeletePost(String postId, String? imageUrl) async {
+    setState(() {
+      _deletingPosts[postId] = true;
+    });
+
+    try {
+      // Delete from Supabase
+      print('🗑️ Deleting post $postId from Supabase...');
+      await FeedRepository.deletePost(postId, imageUrl: imageUrl);
+      print('✅ Post deleted from Supabase successfully');
+
+      // Remove from UI
+      setState(() {
+        _allPosts.removeWhere((post) => post['id'] == postId);
+        _expandedPosts.remove(postId);
+        _postComments.remove(postId);
+        _deletingPosts.remove(postId);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Post deleted ✅'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error deleting post: $e');
+
+      setState(() {
+        _deletingPosts[postId] = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -393,135 +491,239 @@ class _FeedScreenState extends State<FeedScreen> {
     final isExpanded = _expandedPosts[postId] ?? false;
     final isHighlighted =
         post['likes_count'] != null && post['likes_count'] > 0;
+    final isDeleting = _deletingPosts[postId] ?? false;
+    final isPostAuthor = _userEmail == post['user_email'];
 
-    return GestureDetector(
-      onTap: () {
-        if (_userEmail == null) return;
+    return Opacity(
+      opacity: isDeleting ? 0.5 : 1.0,
+      child: GestureDetector(
+        onTap: isDeleting
+            ? null
+            : () {
+                if (_userEmail == null) return;
 
-        Navigator.of(context).push(
-          _buildSmoothRoute(
-            PostDetailScreen(post: post, userEmail: _userEmail!),
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppTheme.spacingM),
-        padding: const EdgeInsets.all(AppTheme.spacingL),
-        decoration: isHighlighted
-            ? AppTheme.accentCardDecoration()
-            : AppTheme.cardDecoration(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Post header with author
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentPrimary.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                Navigator.of(context).push(
+                  _buildSmoothRoute(
+                    PostDetailScreen(post: post, userEmail: _userEmail!),
                   ),
-                  child: Center(
-                    child: Text(
-                      (post['user_email'] as String)[0].toUpperCase(),
-                      style: const TextStyle(
-                        fontFamily: 'DM Sans',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.accentPrimary,
+                );
+              },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: AppTheme.spacingM),
+          padding: const EdgeInsets.all(AppTheme.spacingL),
+          decoration: isHighlighted
+              ? AppTheme.accentCardDecoration()
+              : AppTheme.cardDecoration(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentPrimary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusMedium,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        (post['user_email'] as String)[0].toUpperCase(),
+                        style: const TextStyle(
+                          fontFamily: 'DM Sans',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.accentPrimary,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: AppTheme.spacingM),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        post['user_email'] ?? 'Unknown',
-                        style: AppTheme.cardTitle.copyWith(fontSize: 14),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatTime(post['created_at']),
-                        style: AppTheme.metaText,
-                      ),
-                    ],
+                  const SizedBox(width: AppTheme.spacingM),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          post['user_email'] ?? 'Unknown',
+                          style: AppTheme.cardTitle.copyWith(fontSize: 14),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _formatTime(post['created_at']),
+                          style: AppTheme.metaText,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Icon(
-                  isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: AppTheme.textSecondary,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: AppTheme.spacingL),
-
-            // Post content
-            Text(post['content'] ?? '', style: AppTheme.cardBody),
-
-            const SizedBox(height: AppTheme.spacingL),
-
-            // Post image if exists
-            if (post['image_url'] != null &&
-                (post['image_url'] as String).isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppTheme.spacingL),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                  child: Image.network(
-                    post['image_url'],
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: 200,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: double.infinity,
-                        height: 200,
-                        color: AppTheme.surfaceLight,
-                        child: const Center(
-                          child: Icon(
-                            Icons.image_not_supported_outlined,
-                            color: AppTheme.textTertiary,
+                  // DELETE OPTION IN 3-DOT MENU (only for author)
+                  if (isPostAuthor)
+                    PopupMenuButton<String>(
+                      icon: const Icon(
+                        Icons.more_vert,
+                        color: AppTheme.textSecondary,
+                        size: 18,
+                      ),
+                      color: AppTheme.surfaceLight,
+                      onSelected: (value) {
+                        if (value == 'delete') {
+                          _deletePost(postId, post['image_url']);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.delete_outline,
+                                color: Colors.red,
+                              ),
+                              const SizedBox(width: AppTheme.spacingM),
+                              Text(
+                                'Delete',
+                                style: AppTheme.cardBody.copyWith(
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      );
-                    },
+                      ],
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spacingL),
+              Text(post['content'] ?? '', style: AppTheme.cardBody),
+              const SizedBox(height: AppTheme.spacingL),
+              if (post['image_url'] != null &&
+                  (post['image_url'] as String).isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: AppTheme.spacingL),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                    child: Image.network(
+                      post['image_url'],
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: 200,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: double.infinity,
+                          height: 200,
+                          color: AppTheme.surfaceLight,
+                          child: const Center(
+                            child: Icon(
+                              Icons.image_not_supported_outlined,
+                              color: AppTheme.textTertiary,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: _userEmail != null && !isDeleting
+                        ? () => _toggleLike(post['id'])
+                        : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingM,
+                        vertical: AppTheme.spacingS,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentPrimary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusSmall,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.favorite_border,
+                            color: AppTheme.accentPrimary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${post['likes_count'] ?? 0}',
+                            style: AppTheme.metaText.copyWith(
+                              color: AppTheme.accentPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppTheme.spacingM),
+                  GestureDetector(
+                    onTap: !isDeleting
+                        ? () => _togglePostExpanded(postId)
+                        : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingM,
+                        vertical: AppTheme.spacingS,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentSecondary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusSmall,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            color: AppTheme.accentSecondary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Expand',
+                            style: AppTheme.metaText.copyWith(
+                              color: AppTheme.accentSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-
-            // Post actions (like, comment) - always visible
-            Row(
-              children: [
+              if (isExpanded) ...[
+                const SizedBox(height: AppTheme.spacingL),
+                Divider(color: AppTheme.borderColor),
+                const SizedBox(height: AppTheme.spacingL),
+                _buildCommentsSection(postId),
+                const SizedBox(height: AppTheme.spacingL),
                 GestureDetector(
-                  onTap: _userEmail != null
-                      ? () => _toggleLike(post['id'])
-                      : null,
+                  onTap: !isDeleting ? () => _addComment(postId) : null,
                   child: Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingM,
-                      vertical: AppTheme.spacingS,
+                      vertical: AppTheme.spacingM,
                     ),
                     decoration: BoxDecoration(
-                      color: AppTheme.accentPrimary.withOpacity(0.1),
+                      color: AppTheme.accentPrimary.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                     ),
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.favorite_border,
+                          Icons.add_comment_outlined,
                           color: AppTheme.accentPrimary,
-                          size: 16,
+                          size: 18,
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: AppTheme.spacingS),
                         Text(
-                          '${post['likes_count'] ?? 0}',
+                          'Add a comment',
                           style: AppTheme.metaText.copyWith(
                             color: AppTheme.accentPrimary,
                           ),
@@ -530,83 +732,9 @@ class _FeedScreenState extends State<FeedScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: AppTheme.spacingM),
-                GestureDetector(
-                  onTap: () => _togglePostExpanded(postId),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingM,
-                      vertical: AppTheme.spacingS,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentSecondary.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          color: AppTheme.accentSecondary,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Expand',
-                          style: AppTheme.metaText.copyWith(
-                            color: AppTheme.accentSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ],
-            ),
-
-            // Expanded section - comments
-            if (isExpanded) ...[
-              const SizedBox(height: AppTheme.spacingL),
-              Divider(color: AppTheme.borderColor),
-              const SizedBox(height: AppTheme.spacingL),
-
-              // Comments section
-              _buildCommentsSection(postId),
-
-              const SizedBox(height: AppTheme.spacingL),
-
-              // Add comment button
-              GestureDetector(
-                onTap: () => _addComment(postId),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: AppTheme.spacingM,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentPrimary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.add_comment_outlined,
-                        color: AppTheme.accentPrimary,
-                        size: 18,
-                      ),
-                      const SizedBox(width: AppTheme.spacingS),
-                      Text(
-                        'Add a comment',
-                        style: AppTheme.metaText.copyWith(
-                          color: AppTheme.accentPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -706,13 +834,11 @@ class _FeedScreenState extends State<FeedScreen> {
         _userEmail!,
       );
 
-      // Optimistically update UI
       setState(() {
         final currentLikes = post['likes_count'] ?? 0;
         post['likes_count'] = hasLiked ? currentLikes - 1 : currentLikes + 1;
       });
 
-      // Update database
       if (hasLiked) {
         await FeedRepository.unlikePost(postId, _userEmail!);
       } else {

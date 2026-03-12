@@ -22,6 +22,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool loading = true;
   bool isLiked = false;
   int likeCount = 0;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -173,6 +174,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       ),
     );
   }
+
   Future<void> _deleteComment(Map<String, dynamic> comment) async {
     try {
       await FeedRepository.deleteComment(comment['id']);
@@ -193,9 +195,111 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
+  /// DELETE POST - Only available to post author
+  void _deletePost() async {
+    // Check if user is the post author
+    final isAuthor = await FeedRepository.isPostAuthor(
+      widget.post['id'],
+      widget.userEmail,
+    );
+
+    if (!isAuthor) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You can only delete your own posts'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Show confirmation dialog
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceLight,
+        title: const Text('Delete Post?', style: AppTheme.cardTitle),
+        content: Text(
+          'This action cannot be undone.',
+          style: AppTheme.cardBody,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: AppTheme.cardTitle.copyWith(color: AppTheme.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog
+              await _performDeletePost();
+            },
+            child: Text(
+              'Delete',
+              style: AppTheme.cardTitle.copyWith(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// PERFORM DELETE - Actually deletes from Supabase
+  Future<void> _performDeletePost() async {
+    setState(() {
+      _isDeleting = true;
+    });
+
+    try {
+      // Actually delete from Supabase
+      await FeedRepository.deletePost(
+        widget.post['id'],
+        imageUrl: widget.post['image_url'],
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Post deleted successfully ✅'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Pop back to feed
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            Navigator.pop(context);
+          }
+        });
+      }
+    } catch (e) {
+      print('Error deleting post: $e');
+
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final post = widget.post;
+    final isPostAuthor = widget.userEmail == post['user_email'];
 
     return Scaffold(
       backgroundColor: AppTheme.primaryBackground,
@@ -209,6 +313,34 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ),
         title: const Text('Post Details', style: AppTheme.pageTitle),
         centerTitle: false,
+        // DELETE BUTTON IN 3-DOT MENU (not in AppBar)
+        actions: [
+          if (isPostAuthor)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: AppTheme.textPrimary),
+              color: AppTheme.surfaceLight,
+              onSelected: (value) {
+                if (value == 'delete') {
+                  _deletePost();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.delete_outline, color: Colors.red),
+                      const SizedBox(width: AppTheme.spacingM),
+                      Text(
+                        'Delete Post',
+                        style: AppTheme.cardBody.copyWith(color: Colors.red),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
@@ -530,40 +662,40 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         children: [
           /// COMMENT AUTHOR
           Row(
-  children: [
-    Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: AppTheme.accentSecondary.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-      ),
-      child: Center(
-        child: Text(
-          (comment['user_email'] as String)[0].toUpperCase(),
-          style: const TextStyle(
-            fontFamily: 'DM Sans',
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.accentSecondary,
-          ),
-        ),
-      ),
-    ),
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppTheme.accentSecondary.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                ),
+                child: Center(
+                  child: Text(
+                    (comment['user_email'] as String)[0].toUpperCase(),
+                    style: const TextStyle(
+                      fontFamily: 'DM Sans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.accentSecondary,
+                    ),
+                  ),
+                ),
+              ),
 
-    const SizedBox(width: AppTheme.spacingM),
+              const SizedBox(width: AppTheme.spacingM),
 
-    Expanded(
-      child: Text(
-        comment['user_email'] ?? 'Unknown',
-        style: AppTheme.metaText.copyWith(fontSize: 12),
-        overflow: TextOverflow.ellipsis,
-      ),
-    ),
+              Expanded(
+                child: Text(
+                  comment['user_email'] ?? 'Unknown',
+                  style: AppTheme.metaText.copyWith(fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
 
-    /// THREE DOT MENU (only if comment author)
-    if (comment['user_email'] == widget.userEmail)
-      PopupMenuButton<String>(
+              /// THREE DOT MENU (only if comment author)
+              if (comment['user_email'] == widget.userEmail)
+                PopupMenuButton<String>(
                   icon: const Icon(
                     Icons.more_vert,
                     size: 18,
@@ -586,9 +718,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                     ),
                   ],
-                )
-  ],
-),
+                ),
+            ],
+          ),
 
           const SizedBox(height: AppTheme.spacingM),
 
