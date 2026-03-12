@@ -57,6 +57,17 @@ class FeedRepository {
       rethrow;
     }
   }
+  static Future<void> deleteComment(String commentId) async {
+    try {
+      await SupabaseService.client
+          .from('comments')
+          .delete()
+          .eq('id', commentId);
+    } catch (e) {
+      print('Error deleting comment: $e');
+      rethrow;
+    }
+  }
 
   /// Get a single post by ID
   static Future<Map<String, dynamic>> getPost(String postId) async {

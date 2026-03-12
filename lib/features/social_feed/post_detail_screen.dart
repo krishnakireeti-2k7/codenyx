@@ -173,6 +173,25 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       ),
     );
   }
+  Future<void> _deleteComment(Map<String, dynamic> comment) async {
+    try {
+      await FeedRepository.deleteComment(comment['id']);
+
+      setState(() {
+        comments.removeWhere((c) => c['id'] == comment['id']);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Comment deleted')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error deleting comment: $e')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -511,36 +530,65 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         children: [
           /// COMMENT AUTHOR
           Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppTheme.accentSecondary.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                ),
-                child: Center(
-                  child: Text(
-                    (comment['user_email'] as String)[0].toUpperCase(),
-                    style: const TextStyle(
-                      fontFamily: 'DM Sans',
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.accentSecondary,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppTheme.spacingM),
-              Expanded(
-                child: Text(
-                  comment['user_email'] ?? 'Unknown',
-                  style: AppTheme.metaText.copyWith(fontSize: 12),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+  children: [
+    Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: AppTheme.accentSecondary.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+      ),
+      child: Center(
+        child: Text(
+          (comment['user_email'] as String)[0].toUpperCase(),
+          style: const TextStyle(
+            fontFamily: 'DM Sans',
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.accentSecondary,
           ),
+        ),
+      ),
+    ),
+
+    const SizedBox(width: AppTheme.spacingM),
+
+    Expanded(
+      child: Text(
+        comment['user_email'] ?? 'Unknown',
+        style: AppTheme.metaText.copyWith(fontSize: 12),
+        overflow: TextOverflow.ellipsis,
+      ),
+    ),
+
+    /// THREE DOT MENU (only if comment author)
+    if (comment['user_email'] == widget.userEmail)
+      PopupMenuButton<String>(
+                  icon: const Icon(
+                    Icons.more_vert,
+                    size: 18,
+                    color: AppTheme.textSecondary,
+                  ),
+                  color: AppTheme.surfaceLight,
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      _deleteComment(comment);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(
+                        'Delete',
+                        style: AppTheme.cardBody.copyWith(
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+  ],
+),
 
           const SizedBox(height: AppTheme.spacingM),
 
