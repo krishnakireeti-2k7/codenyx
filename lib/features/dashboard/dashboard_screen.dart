@@ -1,8 +1,8 @@
 // dashboard_screen.dart
 
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/supabase_service.dart';
 import '../../services/session_service.dart';
@@ -18,15 +18,18 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
   String teamId = "";
+  String teamName = "";
+  String projectName = "";
+  String userEmail = "";
   List members = [];
   int _selectedIndex = 0;
+  bool _isLoading = true;
 
   late PageController _pageController;
 
   @override
   void initState() {
     super.initState();
-    loadTeam();
     _pageController = PageController(initialPage: 0);
 
     _pageController.addListener(() {
@@ -34,28 +37,101 @@ class _DashboardScreenState extends State<DashboardScreen>
         _selectedIndex = _pageController.page?.round() ?? 0;
       });
     });
+
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    try {
+      final session = await SessionService.getSession();
+      teamId = session['teamId'] ?? '';
+      userEmail = session['email'] ?? '';
+
+      if (teamId.isNotEmpty) {
+        // Fetch team info
+        final teamResponse = await SupabaseService.client
+            .from('teams')
+            .select()
+            .eq('team_id', teamId)
+            .maybeSingle();
+
+        if (teamResponse != null) {
+          teamName = teamResponse['team_name'] ?? '';
+          projectName = teamResponse['project_name'] ?? '';
+        }
+
+        // Fetch team members
+        final membersResponse = await SupabaseService.client
+            .from('team_members')
+            .select()
+            .eq('team_id', teamId)
+            .order('name', ascending: true);
+
+        setState(() {
+          members = membersResponse;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading dashboard: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void _onNavTapped(int index) {
     _pageController.animateToPage(
       index,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeInOut,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
     );
   }
 
-  Future<void> loadTeam() async {
-    final prefs = await SessionService.getSession();
-    teamId = prefs['teamId'];
-
-    final response = await SupabaseService.client
-        .from('team_members')
-        .select()
-        .eq('team_id', teamId);
-
-    setState(() {
-      members = response;
-    });
+  Future<void> _handleLogout() async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceLight,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+        ),
+        title: const Text('Logout?', style: AppTheme.cardTitle),
+        content: Text(
+          'Are you sure you want to logout?',
+          style: AppTheme.cardBody,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: AppTheme.cardTitle.copyWith(color: AppTheme.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await SessionService.clearSession();
+              if (mounted) {
+                context.go('/');
+              }
+            },
+            child: Text(
+              'Logout',
+              style: AppTheme.cardTitle.copyWith(
+                color: Colors.red,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -68,48 +144,63 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    return Scaffold(
-      backgroundColor: AppTheme.primaryBackground,
-      body: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: AppTheme.backgroundGradient,
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: Scaffold(
+        backgroundColor: AppTheme.primaryBackground,
+        body: Stack(
+          children: [
+            // Background gradient
+            Container(
+              decoration: const BoxDecoration(
+                gradient: AppTheme.backgroundGradient,
+              ),
             ),
-          ),
 
-          // subtle ambient glow
-          Positioned(
-            top: -80,
-            right: -40,
-            child: IgnorePointer(
-              child: Container(
-                width: 220,
-                height: 220,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppTheme.accentPrimary.withOpacity(0.08),
+            // Ambient glow
+            Positioned(
+              top: -80,
+              right: -40,
+              child: IgnorePointer(
+                child: Container(
+                  width: 220,
+                  height: 220,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.accentPrimary.withOpacity(0.08),
+                  ),
                 ),
               ),
             ),
-          ),
 
-          PageView(
-            controller: _pageController,
-            physics: const BouncingScrollPhysics(),
-            children: [
-              _buildDashboardPage(),
-              FeedScreen(teamId: teamId),
-            ],
-          ),
+            // PageView with pages
+            if (_isLoading)
+              const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppTheme.accentPrimary,
+                  ),
+                ),
+              )
+            else
+              PageView(
+                controller: _pageController,
+                physics: const BouncingScrollPhysics(),
+                children: [
+                  _buildDashboardPage(),
+                  FeedScreen(teamId: teamId),
+                ],
+              ),
 
-          Positioned(
-            left: AppTheme.spacingL,
-            right: AppTheme.spacingL,
-            bottom: bottomInset + AppTheme.spacingM,
-            child: _buildFloatingNavBar(),
-          ),
-        ],
+            // Floating nav bar (bottom) - KEPT IMPORTANT
+            Positioned(
+              left: AppTheme.spacingL,
+              right: AppTheme.spacingL,
+              bottom: bottomInset + AppTheme.spacingM,
+              child: _buildFloatingNavBar(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -129,27 +220,40 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildBrandHeader(),
+            // Header with logout button
+            _buildHeaderWithLogout(),
             const SizedBox(height: AppTheme.spacingL),
+
+            // Quick stats
             _buildQuickStats(memberCount),
             const SizedBox(height: AppTheme.spacingL),
+
+            // Timer banner
             _buildTimerBanner(),
             const SizedBox(height: AppTheme.spacingXL),
+
+            // Team section
             const Text("TEAM", style: AppTheme.sectionHeader),
             const SizedBox(height: AppTheme.spacingM),
             Text(
-              teamId.isEmpty ? "Loading team..." : teamId,
+              teamName.isEmpty ? teamId : teamName,
               style: AppTheme.pageTitle.copyWith(fontSize: 28),
             ),
+            const SizedBox(height: AppTheme.spacingS),
+            if (projectName.isNotEmpty)
+              Text(projectName, style: AppTheme.metaText),
             const SizedBox(height: AppTheme.spacingXL),
+
+            // Team members
             _buildTeamMembers(memberCount),
+            const SizedBox(height: AppTheme.spacingXL),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBrandHeader() {
+  Widget _buildHeaderWithLogout() {
     return Row(
       children: [
         Container(
@@ -176,17 +280,35 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: const Text('codenyx', style: AppTheme.hackathonTitle),
         ),
         const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTheme.spacingM,
-            vertical: AppTheme.spacingS,
+        GestureDetector(
+          onTap: _handleLogout,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.spacingM,
+              vertical: AppTheme.spacingS,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: Colors.red.withOpacity(0.3)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.logout, color: Colors.red, size: 16),
+                SizedBox(width: 6),
+                Text(
+                  'Logout',
+                  style: TextStyle(
+                    fontFamily: 'DM Sans',
+                    color: Colors.red,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
-          decoration: BoxDecoration(
-            color: AppTheme.surfaceLight.withOpacity(0.45),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: AppTheme.borderColor),
-          ),
-          child: const Text('Dashboard', style: AppTheme.metaText),
         ),
       ],
     );
@@ -197,7 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       children: [
         Expanded(
           child: _buildStatCard(
-            title: 'Team',
+            title: 'Team ID',
             value: teamId.isEmpty ? '--' : teamId,
             icon: Icons.groups_rounded,
           ),
@@ -339,12 +461,13 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           )
         else
-          Column(
-            children: [
-              ...members.asMap().entries.map(
-                (entry) => _buildMemberCard(entry.value, entry.key),
-              ),
-            ],
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: members.length,
+            separatorBuilder: (_, _) =>
+                const SizedBox(height: AppTheme.spacingM),
+            itemBuilder: (_, index) => _buildMemberCard(members[index]),
           ),
       ],
     );
@@ -456,7 +579,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildMemberCard(dynamic member, int index) {
+  Widget _buildMemberCard(dynamic member) {
+    final isCurrentUser = member['email'] == userEmail;
+
     return Container(
       margin: const EdgeInsets.only(bottom: AppTheme.spacingM),
       padding: const EdgeInsets.all(AppTheme.spacingL),
@@ -464,15 +589,22 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(AppTheme.spacingS),
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: AppTheme.accentPrimary.withOpacity(0.1),
+              color: AppTheme.accentPrimary.withOpacity(0.15),
               borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
             ),
-            child: Icon(
-              Icons.person_outline,
-              color: AppTheme.accentPrimary,
-              size: 20,
+            child: Center(
+              child: Text(
+                (member['email'] as String)[0].toUpperCase(),
+                style: const TextStyle(
+                  fontFamily: 'DM Sans',
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.accentPrimary,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: AppTheme.spacingL),
@@ -480,9 +612,38 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(member['email'] ?? 'Unknown', style: AppTheme.cardTitle),
+                Row(
+                  children: [
+                    Text(
+                      member['name'] ?? 'Unknown',
+                      style: AppTheme.cardTitle,
+                    ),
+                    if (isCurrentUser) ...[
+                      const SizedBox(width: AppTheme.spacingS),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppTheme.spacingS,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentPrimary.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusSmall,
+                          ),
+                        ),
+                        child: Text(
+                          'You',
+                          style: AppTheme.metaText.copyWith(
+                            color: AppTheme.accentPrimary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 4),
-                Text("Team Member", style: AppTheme.metaText),
+                Text(member['email'] ?? 'Unknown', style: AppTheme.metaText),
               ],
             ),
           ),
@@ -492,17 +653,36 @@ class _DashboardScreenState extends State<DashboardScreen>
               vertical: AppTheme.spacingS,
             ),
             decoration: BoxDecoration(
-              color: AppTheme.accentPrimary.withOpacity(0.15),
+              color: (member['joined'] as bool)
+                  ? Colors.green.withOpacity(0.15)
+                  : Colors.grey.withOpacity(0.15),
               borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
             ),
-            child: const Text(
-              "Active",
-              style: TextStyle(
-                fontFamily: 'DM Sans',
-                color: AppTheme.accentPrimary,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  (member['joined'] as bool)
+                      ? Icons.check_circle
+                      : Icons.schedule,
+                  color: (member['joined'] as bool)
+                      ? Colors.green
+                      : Colors.grey,
+                  size: 14,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  (member['joined'] as bool) ? "Joined" : "Pending",
+                  style: TextStyle(
+                    fontFamily: 'DM Sans',
+                    color: (member['joined'] as bool)
+                        ? Colors.green
+                        : Colors.grey,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
