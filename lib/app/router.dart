@@ -1,21 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../features/auth/google_auth_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
-import '../services/session_service.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
-  redirect: (context, state) async {
-    final loggedIn = await SessionService.isLoggedIn();
+  redirect: (context, state) {
+    final session = Supabase.instance.client.auth.currentSession;
+    final loggedIn = session != null;
 
-    if (!loggedIn) {
-      return '/';
-    }
+    if (!loggedIn) return '/';
 
-    if (loggedIn && state.uri.path == '/') {
-      return '/dashboard';
-    }
+    if (loggedIn && state.uri.path == '/') return '/dashboard';
 
     return null;
   },

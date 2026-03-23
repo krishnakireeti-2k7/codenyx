@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:codenyx/core/theme/app_theme.dart';
 import 'package:codenyx/services/session_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_repository.dart';
 
 class GoogleAuthScreen extends StatefulWidget {
@@ -16,6 +19,8 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  StreamSubscription<AuthState>? _authSubscription;
+  bool _handledSignIn = false;
 
   bool loading = false;
   String? errorMessage;
@@ -37,11 +42,56 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
           CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
         );
 
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
+      data,
+    ) async {
+      if (data.event != AuthChangeEvent.signedIn || _handledSignIn) {
+        return;
+      }
+
+      final user = data.session?.user;
+      final email = user?.email;
+
+      if (email == null) {
+        return;
+      }
+
+      _handledSignIn = true;
+
+      try {
+        final teamId = await AuthRepository.findUserTeam(email);
+
+        if (!mounted) return;
+
+        await SessionService.saveSession(email, teamId ?? "NO_TEAM");
+
+        if (!mounted) return;
+
+        setState(() {
+          loading = false;
+          errorMessage = null;
+        });
+
+        context.go('/dashboard');
+      } catch (e) {
+        _handledSignIn = false;
+
+        if (!mounted) return;
+
+        setState(() {
+          loading = false;
+          errorMessage = "Sign-in failed: ${e.toString()}";
+        });
+        _showErrorSnackBar(errorMessage!);
+      }
+    });
+
     _animationController.forward();
   }
 
   @override
   void dispose() {
+    _authSubscription?.cancel();
     _animationController.dispose();
     super.dispose();
   }
@@ -53,47 +103,8 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
     });
 
     try {
-      // Step 1: Sign in with Google via Supabase
-      final email = await AuthRepository.signInWithGoogle();
-
-      if (!mounted) return;
-
-      if (email == null) {
-        setState(() {
-          loading = false;
-          errorMessage = "Google sign-in was cancelled";
-        });
-        return;
-      }
-
-      // Step 2: Find user's team from database using their email
-      final teamId = await AuthRepository.findUserTeam(email);
-
-      if (!mounted) return;
-
-      if (teamId == null) {
-        setState(() {
-          loading = false;
-          errorMessage =
-              "Email not found in any team. Contact organizers.";
-        });
-        _showErrorSnackBar(errorMessage!);
-        return;
-      }
-
-      // Step 3: Save session
-      await SessionService.saveSession(email, teamId);
-
-      if (!mounted) return;
-
-      _showSuccessSnackBar("Welcome to CodeNyx!");
-
-      // Step 4: Navigate to dashboard
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          context.go('/dashboard');
-        }
-      });
+      _handledSignIn = false;
+      await AuthRepository.signInWithGoogle();
     } catch (e) {
       if (!mounted) return;
 
@@ -104,34 +115,6 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
       });
       _showErrorSnackBar(errorMsg);
     }
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.white),
-            const SizedBox(width: 12),
-            Text(
-              message,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        ),
-        margin: const EdgeInsets.all(20),
-        duration: const Duration(seconds: 3),
-      ),
-    );
   }
 
   void _showErrorSnackBar(String message) {
@@ -255,8 +238,9 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
                           decoration: BoxDecoration(
                             color: Colors.red.withOpacity(0.1),
                             border: Border.all(color: Colors.red, width: 1),
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusMedium),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusMedium,
+                            ),
                           ),
                           child: Row(
                             children: [
@@ -335,9 +319,7 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
                       // Security Footer
                       Text(
                         "Your data is secure. We only use your email to find your team.",
-                        style: AppTheme.metaText.copyWith(
-                          fontSize: 12,
-                        ),
+                        style: AppTheme.metaText.copyWith(fontSize: 12),
                         textAlign: TextAlign.center,
                       ),
                     ],

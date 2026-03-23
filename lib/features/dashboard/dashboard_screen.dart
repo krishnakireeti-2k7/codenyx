@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
+import '../auth/auth_repository.dart';
 import '../../services/supabase_service.dart';
 import '../../services/session_service.dart';
 import '../social_feed/feed_screen.dart';
@@ -116,10 +117,10 @@ class _DashboardScreenState extends State<DashboardScreen>
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
+              await AuthRepository.signOut();
               await SessionService.clearSession();
-              if (mounted) {
-                context.go('/');
-              }
+              if (!mounted) return;
+              GoRouter.of(this.context).go('/');
             },
             child: Text(
               'Logout',

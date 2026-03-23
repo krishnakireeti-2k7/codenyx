@@ -3,34 +3,12 @@ import '../../services/supabase_service.dart';
 
 class AuthRepository {
   /// Sign in with Google via Supabase OAuth
-  /// Returns the authenticated user's email, or null if sign-in fails
-  static Future<String?> signInWithGoogle() async {
-    try {
-      print('🔐 Starting Google Sign-In...');
-
-      // Trigger Google OAuth flow
-      await SupabaseService.client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'io.supabase.codenyx://login-callback/',
-      );
-
-      // Get the authenticated user
-      final user = SupabaseService.client.auth.currentUser;
-
-      if (user != null && user.email != null) {
-        print('✅ Google Sign-In successful. Email: ${user.email}');
-        return user.email!;
-      } else {
-        print('❌ No user or email after Google sign-in');
-        return null;
-      }
-    } on AuthException catch (e) {
-      print('❌ Auth Exception: ${e.message}');
-      rethrow;
-    } catch (e) {
-      print('❌ Google Sign-In Error: $e');
-      rethrow;
-    }
+  static Future<void> signInWithGoogle() async {
+    await Supabase.instance.client.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: 'io.supabase.flutter://login-callback/',
+      queryParams: {'prompt': 'select_account'},
+    );
   }
 
   /// Find which team the user belongs to using their email
