@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../features/auth/team_join_screen.dart';
+import '../features/auth/google_auth_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../services/session_service.dart';
 
@@ -25,7 +25,7 @@ final GoRouter appRouter = GoRouter(
       pageBuilder: (context, state) {
         return CustomTransitionPage<void>(
           key: state.pageKey,
-          child: const TeamJoinScreen(),
+          child: const GoogleAuthScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
               opacity: animation,
