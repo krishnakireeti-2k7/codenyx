@@ -54,6 +54,7 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
 
       if (email == null) {
         return;
+        
       }
 
       _handledSignIn = true;

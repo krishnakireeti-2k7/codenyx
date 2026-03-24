@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
-import '../../services/session_service.dart';
 import 'feed_repository.dart';
+import 'post_state.dart';
 
 class PostDetailScreen extends StatefulWidget {
   final Map<String, dynamic> post;
@@ -19,17 +19,17 @@ class PostDetailScreen extends StatefulWidget {
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
   late List<Map<String, dynamic>> comments = [];
+  late int likeCount;
+  late bool isLiked;
   bool loading = true;
-  bool isLiked = false;
-  int likeCount = 0;
-  bool _isDeleting = false;
 
   @override
   void initState() {
     super.initState();
-    likeCount = widget.post['likes_count'] ?? 0;
+    final cachedPost = PostState.getPost(widget.post['id']);
+    likeCount = cachedPost?['likes_count'] ?? widget.post['likes_count'] ?? 0;
+    isLiked = cachedPost?['user_liked'] ?? widget.post['user_liked'] ?? false;
     _loadComments();
-    _checkIfLiked();
   }
 
   Future<void> _loadComments() async {
@@ -51,41 +51,62 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  Future<void> _checkIfLiked() async {
-    try {
-      final liked = await FeedRepository.hasUserLikedPost(
-        widget.post['id'],
-        widget.userEmail,
-      );
-      setState(() {
-        isLiked = liked;
-      });
-    } catch (e) {
-      print('Error checking like: $e');
-    }
-  }
-
+  /// INSTANT LIKE TOGGLE
   Future<void> _toggleLike() async {
+    final wasLiked = isLiked;
+    final currentCount = likeCount;
+
+    // Instant UI update
+    setState(() {
+      isLiked = !isLiked;
+      likeCount = isLiked ? currentCount + 1 : currentCount - 1;
+    });
+    widget.post['likes_count'] = likeCount;
+    widget.post['user_liked'] = isLiked;
+    PostState.updatePostLikes(widget.post['id'], likeCount, isLiked);
+
+    // Background database operation
     try {
-      if (isLiked) {
-        await FeedRepository.unlikePost(widget.post['id'], widget.userEmail);
-        setState(() {
-          isLiked = false;
-          likeCount--;
-        });
+      if (wasLiked) {
+        final success = await FeedRepository.unlikePost(
+          widget.post['id'],
+          widget.userEmail,
+        );
+        if (!success && mounted) {
+          setState(() {
+            isLiked = wasLiked;
+            likeCount = currentCount;
+          });
+          widget.post['likes_count'] = currentCount;
+          widget.post['user_liked'] = wasLiked;
+          PostState.updatePostLikes(widget.post['id'], currentCount, wasLiked);
+        }
       } else {
-        await FeedRepository.likePost(widget.post['id'], widget.userEmail);
-        setState(() {
-          isLiked = true;
-          likeCount++;
-        });
+        final success = await FeedRepository.likePost(
+          widget.post['id'],
+          widget.userEmail,
+        );
+        if (!success && mounted) {
+          setState(() {
+            isLiked = wasLiked;
+            likeCount = currentCount;
+          });
+          widget.post['likes_count'] = currentCount;
+          widget.post['user_liked'] = wasLiked;
+          PostState.updatePostLikes(widget.post['id'], currentCount, wasLiked);
+        }
       }
     } catch (e) {
+      print('Error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        setState(() {
+          isLiked = wasLiked;
+          likeCount = currentCount;
+        });
       }
+      widget.post['likes_count'] = currentCount;
+      widget.post['user_liked'] = wasLiked;
+      PostState.updatePostLikes(widget.post['id'], currentCount, wasLiked);
     }
   }
 
@@ -195,9 +216,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  /// DELETE POST - Only available to post author
   void _deletePost() async {
-    // Check if user is the post author
     final isAuthor = await FeedRepository.isPostAuthor(
       widget.post['id'],
       widget.userEmail,
@@ -213,7 +232,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       return;
     }
 
-    // Show confirmation dialog
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -233,7 +251,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context); // Close dialog
+              Navigator.pop(context);
               await _performDeletePost();
             },
             child: Text(
@@ -249,14 +267,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  /// PERFORM DELETE - Actually deletes from Supabase
   Future<void> _performDeletePost() async {
-    setState(() {
-      _isDeleting = true;
-    });
-
     try {
-      // Actually delete from Supabase
       await FeedRepository.deletePost(
         widget.post['id'],
         imageUrl: widget.post['image_url'],
@@ -271,8 +283,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
         );
 
-        // Pop back to feed
-        Future.delayed(const Duration(milliseconds: 500), () {
+        Future.delayed(const Duration(milliseconds: 300), () {
           if (mounted) {
             Navigator.pop(context);
           }
@@ -282,10 +293,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       print('Error deleting post: $e');
 
       if (mounted) {
-        setState(() {
-          _isDeleting = false;
-        });
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to delete: $e'),
@@ -313,7 +320,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ),
         title: const Text('Post Details', style: AppTheme.pageTitle),
         centerTitle: false,
-        // DELETE BUTTON IN 3-DOT MENU (not in AppBar)
         actions: [
           if (isPostAuthor)
             PopupMenuButton<String>(
@@ -353,26 +359,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    /// POST HEADER
                     _buildPostHeader(post),
-
                     const SizedBox(height: AppTheme.spacingXL),
-
-                    /// POST CONTENT
                     _buildPostContent(post),
-
                     const SizedBox(height: AppTheme.spacingXL),
-
-                    if (post['image_url'] != null &&
-                        (post['image_url'] as String).isNotEmpty)
-                      const SizedBox(height: AppTheme.spacingXL),
-
-                    /// ACTIONS (Like, Comments)
                     _buildPostActions(),
-
                     const SizedBox(height: AppTheme.spacingXL),
-
-                    /// COMMENTS SECTION
                     _buildCommentsSection(),
                   ],
                 ),
@@ -387,7 +379,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget _buildPostHeader(Map<String, dynamic> post) {
     return Row(
       children: [
-        /// AUTHOR AVATAR
         Container(
           width: 48,
           height: 48,
@@ -408,8 +399,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
         ),
         const SizedBox(width: AppTheme.spacingL),
-
-        /// AUTHOR INFO
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,7 +420,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        /// TEXT CONTENT (Twitter style)
         if (content != null && content.trim().isNotEmpty)
           Text(
             content,
@@ -441,15 +429,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               letterSpacing: 0.2,
             ),
           ),
-
-        /// SPACE BETWEEN TEXT AND IMAGE
         if (content != null &&
             content.trim().isNotEmpty &&
             imageUrl != null &&
             imageUrl.isNotEmpty)
           const SizedBox(height: AppTheme.spacingL),
-
-        /// IMAGE CONTENT
         if (imageUrl != null && imageUrl.isNotEmpty)
           ClipRRect(
             borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
@@ -457,10 +441,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               imageUrl,
               width: double.infinity,
               fit: BoxFit.cover,
+              cacheHeight: 600,
+              cacheWidth: 600,
               errorBuilder: (context, error, stackTrace) {
                 return Container(
                   width: double.infinity,
-                  height: 200,
+                  height: 250,
                   decoration: BoxDecoration(
                     color: AppTheme.surfaceLight,
                     borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
@@ -480,41 +466,14 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  Widget _buildPostImage(Map<String, dynamic> post) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-      child: Image.network(
-        post['image_url'],
-        fit: BoxFit.cover,
-        width: double.infinity,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            width: double.infinity,
-            height: 200,
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceLight,
-              borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.image_not_supported_outlined,
-                color: AppTheme.textTertiary,
-                size: 48,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildPostActions() {
     return Row(
       children: [
-        /// LIKE BUTTON
         GestureDetector(
           onTap: _toggleLike,
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
             padding: const EdgeInsets.symmetric(
               horizontal: AppTheme.spacingL,
               vertical: AppTheme.spacingM,
@@ -533,12 +492,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
             child: Row(
               children: [
-                Icon(
-                  isLiked ? Icons.favorite : Icons.favorite_border,
-                  color: isLiked
-                      ? AppTheme.accentPrimary
-                      : AppTheme.textSecondary,
-                  size: 20,
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  transitionBuilder: (child, animation) {
+                    return ScaleTransition(scale: animation, child: child);
+                  },
+                  child: Icon(
+                    key: ValueKey(isLiked),
+                    isLiked ? Icons.favorite : Icons.favorite_border,
+                    color: isLiked
+                        ? AppTheme.accentPrimary
+                        : AppTheme.textSecondary,
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: AppTheme.spacingM),
                 Text(
@@ -553,10 +519,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ),
         ),
-
         const SizedBox(width: AppTheme.spacingM),
-
-        /// COMMENT BUTTON
         Expanded(
           child: GestureDetector(
             onTap: _addComment,
@@ -603,8 +566,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       children: [
         const Text('COMMENTS', style: AppTheme.sectionHeader),
         const SizedBox(height: AppTheme.spacingL),
-
-        /// COMMENTS LIST
         if (loading)
           const Center(
             child: Padding(
@@ -647,7 +608,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               return _buildCommentCard(comment);
             },
           ),
-
         const SizedBox(height: AppTheme.spacingL),
       ],
     );
@@ -660,7 +620,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// COMMENT AUTHOR
           Row(
             children: [
               Container(
@@ -682,9 +641,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(width: AppTheme.spacingM),
-
               Expanded(
                 child: Text(
                   comment['user_email'] ?? 'Unknown',
@@ -692,8 +649,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-
-              /// THREE DOT MENU (only if comment author)
               if (comment['user_email'] == widget.userEmail)
                 PopupMenuButton<String>(
                   icon: const Icon(
@@ -721,10 +676,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 ),
             ],
           ),
-
           const SizedBox(height: AppTheme.spacingM),
-
-          /// COMMENT TEXT
           Text(
             comment['comment'] ?? '',
             style: AppTheme.cardBody.copyWith(height: 1.5),

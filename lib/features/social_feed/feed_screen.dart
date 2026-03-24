@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../services/session_service.dart';
 import 'create_post_screen.dart';
 import 'feed_repository.dart';
+import 'post_state.dart';
 
 class FeedScreen extends StatefulWidget {
   final String teamId;
@@ -30,15 +31,23 @@ class _FeedScreenState extends State<FeedScreen> {
     super.initState();
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
+    PostState.changes.addListener(_handlePostStateChange);
     _loadUserEmail();
     _postsFuture = FeedRepository.fetchPosts(offset: _currentOffset);
   }
 
+  void _handlePostStateChange() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   Future<void> _loadUserEmail() async {
     final session = await SessionService.getSession();
-    setState(() {
-      _userEmail = session['email'];
-    });
+    if (mounted) {
+      setState(() {
+        _userEmail = session['email'];
+      });
+    }
   }
 
   void _onScroll() {
@@ -58,15 +67,19 @@ class _FeedScreenState extends State<FeedScreen> {
 
     try {
       final newPosts = await FeedRepository.fetchPosts(offset: _currentOffset);
-      setState(() {
-        _allPosts.addAll(newPosts);
-      });
+      if (mounted) {
+        setState(() {
+          _allPosts.addAll(newPosts);
+        });
+      }
     } catch (e) {
       print('Error loading more posts: $e');
     } finally {
-      setState(() {
-        _isLoadingMore = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingMore = false;
+        });
+      }
     }
   }
 
@@ -74,6 +87,9 @@ class _FeedScreenState extends State<FeedScreen> {
     setState(() {
       _currentOffset = 0;
       _allPosts = [];
+      _expandedPosts.clear();
+      _postComments.clear();
+      PostState.clear();
       _postsFuture = FeedRepository.fetchPosts(offset: 0);
     });
   }
@@ -81,8 +97,8 @@ class _FeedScreenState extends State<FeedScreen> {
   Route<T> _buildSmoothRoute<T>(Widget page, {bool fullscreenDialog = false}) {
     return PageRouteBuilder<T>(
       fullscreenDialog: fullscreenDialog,
-      transitionDuration: const Duration(milliseconds: 280),
-      reverseTransitionDuration: const Duration(milliseconds: 220),
+      transitionDuration: const Duration(milliseconds: 200),
+      reverseTransitionDuration: const Duration(milliseconds: 150),
       pageBuilder: (context, animation, secondaryAnimation) => page,
       transitionsBuilder: (context, animation, secondaryAnimation, child) {
         final curvedAnimation = CurvedAnimation(
@@ -91,7 +107,7 @@ class _FeedScreenState extends State<FeedScreen> {
           reverseCurve: Curves.easeInCubic,
         );
         final slideAnimation = Tween<Offset>(
-          begin: const Offset(0, 0.03),
+          begin: const Offset(0, 0.02),
           end: Offset.zero,
         ).animate(curvedAnimation);
 
@@ -120,9 +136,11 @@ class _FeedScreenState extends State<FeedScreen> {
     if (_expandedPosts[postId]! && !_postComments.containsKey(postId)) {
       try {
         final comments = await FeedRepository.getComments(postId);
-        setState(() {
-          _postComments[postId] = comments;
-        });
+        if (mounted) {
+          setState(() {
+            _postComments[postId] = comments;
+          });
+        }
       } catch (e) {
         print('Error loading comments: $e');
       }
@@ -190,11 +208,9 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  /// DELETE POST WITH CONFIRMATION
   void _deletePost(String postId, String? imageUrl) async {
     if (_userEmail == null) return;
 
-    // Check authorization
     final isAuthor = await FeedRepository.isPostAuthor(postId, _userEmail!);
     if (!isAuthor) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -206,7 +222,6 @@ class _FeedScreenState extends State<FeedScreen> {
       return;
     }
 
-    // Show confirmation
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -242,27 +257,23 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  /// PERFORM ACTUAL DELETION
   Future<void> _performDeletePost(String postId, String? imageUrl) async {
     setState(() {
       _deletingPosts[postId] = true;
     });
 
     try {
-      // Delete from Supabase
-      print('🗑️ Deleting post $postId from Supabase...');
       await FeedRepository.deletePost(postId, imageUrl: imageUrl);
-      print('✅ Post deleted from Supabase successfully');
-
-      // Remove from UI
-      setState(() {
-        _allPosts.removeWhere((post) => post['id'] == postId);
-        _expandedPosts.remove(postId);
-        _postComments.remove(postId);
-        _deletingPosts.remove(postId);
-      });
 
       if (mounted) {
+        setState(() {
+          _allPosts.removeWhere((post) => post['id'] == postId);
+          _expandedPosts.remove(postId);
+          _postComments.remove(postId);
+          _deletingPosts.remove(postId);
+        });
+        PostState.removePost(postId);
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Post deleted ✅'),
@@ -274,11 +285,11 @@ class _FeedScreenState extends State<FeedScreen> {
     } catch (e) {
       print('❌ Error deleting post: $e');
 
-      setState(() {
-        _deletingPosts[postId] = false;
-      });
-
       if (mounted) {
+        setState(() {
+          _deletingPosts[postId] = false;
+        });
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to delete: $e'),
@@ -289,8 +300,71 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
+  /// TOGGLE LIKE - INSTANT UPDATE
+  Future<void> _toggleLike(String postId) async {
+    if (_userEmail == null) return;
+
+    final index = _allPosts.indexWhere((p) => p['id'] == postId);
+    if (index == -1) return;
+
+    final post = _allPosts[index];
+    final currentLikes = post['likes_count'] ?? 0;
+    final wasLiked = (post['user_liked'] ?? false) as bool;
+
+    // INSTANT UPDATE UI
+    setState(() {
+      post['likes_count'] = wasLiked ? currentLikes - 1 : currentLikes + 1;
+      post['user_liked'] = !wasLiked;
+    });
+
+    // Save to cache
+    PostState.updatePostLikes(postId, post['likes_count'], post['user_liked']);
+
+    // Perform actual database operation in background
+    try {
+      if (wasLiked) {
+        final success = await FeedRepository.unlikePost(postId, _userEmail!);
+        if (!success && mounted) {
+          // Revert on failure
+          setState(() {
+            post['likes_count'] = currentLikes;
+            post['user_liked'] = wasLiked;
+          });
+          PostState.updatePostLikes(postId, currentLikes, wasLiked);
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Failed to unlike')));
+        }
+      } else {
+        final success = await FeedRepository.likePost(postId, _userEmail!);
+        if (!success && mounted) {
+          // Revert on failure
+          setState(() {
+            post['likes_count'] = currentLikes;
+            post['user_liked'] = wasLiked;
+          });
+          PostState.updatePostLikes(postId, currentLikes, wasLiked);
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Failed to like')));
+        }
+      }
+    } catch (e) {
+      print('Error toggling like: $e');
+      if (mounted) {
+        // Revert on error
+        setState(() {
+          post['likes_count'] = currentLikes;
+          post['user_liked'] = wasLiked;
+        });
+        PostState.updatePostLikes(postId, currentLikes, wasLiked);
+      }
+    }
+  }
+
   @override
   void dispose() {
+    PostState.changes.removeListener(_handlePostStateChange);
     _scrollController.dispose();
     super.dispose();
   }
@@ -389,6 +463,11 @@ class _FeedScreenState extends State<FeedScreen> {
           }
 
           _allPosts = snapshot.data!;
+
+          // Cache posts for state management
+          for (var post in _allPosts) {
+            PostState.addPost(post['id'], post);
+          }
 
           return RefreshIndicator(
             onRefresh: _refreshFeed,
@@ -489,10 +568,10 @@ class _FeedScreenState extends State<FeedScreen> {
   Widget _buildPostCard(Map<String, dynamic> post) {
     final postId = post['id'];
     final isExpanded = _expandedPosts[postId] ?? false;
-    final isHighlighted =
-        post['likes_count'] != null && post['likes_count'] > 0;
+    final isHighlighted = (post['likes_count'] ?? 0) > 0;
     final isDeleting = _deletingPosts[postId] ?? false;
     final isPostAuthor = _userEmail == post['user_email'];
+    final isLiked = (post['user_liked'] ?? false) as bool;
 
     return Opacity(
       opacity: isDeleting ? 0.5 : 1.0,
@@ -558,7 +637,6 @@ class _FeedScreenState extends State<FeedScreen> {
                       ],
                     ),
                   ),
-                  // DELETE OPTION IN 3-DOT MENU (only for author)
                   if (isPostAuthor)
                     PopupMenuButton<String>(
                       icon: const Icon(
@@ -608,11 +686,13 @@ class _FeedScreenState extends State<FeedScreen> {
                       post['image_url'],
                       fit: BoxFit.cover,
                       width: double.infinity,
-                      height: 200,
+                      height: 180,
+                      cacheHeight: 360,
+                      cacheWidth: 360,
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           width: double.infinity,
-                          height: 200,
+                          height: 180,
                           color: AppTheme.surfaceLight,
                           child: const Center(
                             child: Icon(
@@ -628,16 +708,20 @@ class _FeedScreenState extends State<FeedScreen> {
               Row(
                 children: [
                   GestureDetector(
-                    onTap: _userEmail != null && !isDeleting
-                        ? () => _toggleLike(post['id'])
+                    onTap: (_userEmail != null && !isDeleting)
+                        ? () => _toggleLike(postId)
                         : null,
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppTheme.spacingM,
                         vertical: AppTheme.spacingS,
                       ),
                       decoration: BoxDecoration(
-                        color: AppTheme.accentPrimary.withOpacity(0.1),
+                        color: isLiked
+                            ? AppTheme.accentPrimary.withOpacity(0.2)
+                            : AppTheme.accentPrimary.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(
                           AppTheme.radiusSmall,
                         ),
@@ -645,8 +729,10 @@ class _FeedScreenState extends State<FeedScreen> {
                       child: Row(
                         children: [
                           Icon(
-                            Icons.favorite_border,
-                            color: AppTheme.accentPrimary,
+                            isLiked ? Icons.favorite : Icons.favorite_border,
+                            color: isLiked
+                                ? AppTheme.accentPrimary
+                                : AppTheme.accentPrimary.withOpacity(0.7),
                             size: 16,
                           ),
                           const SizedBox(width: 4),
@@ -654,6 +740,7 @@ class _FeedScreenState extends State<FeedScreen> {
                             '${post['likes_count'] ?? 0}',
                             style: AppTheme.metaText.copyWith(
                               color: AppTheme.accentPrimary,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -818,35 +905,6 @@ class _FeedScreenState extends State<FeedScreen> {
         ],
       ),
     );
-  }
-
-  void _toggleLike(String postId) async {
-    if (_userEmail == null) return;
-
-    try {
-      final index = _allPosts.indexWhere((p) => p['id'] == postId);
-      if (index == -1) return;
-
-      final post = _allPosts[index];
-
-      final hasLiked = await FeedRepository.hasUserLikedPost(
-        postId,
-        _userEmail!,
-      );
-
-      setState(() {
-        final currentLikes = post['likes_count'] ?? 0;
-        post['likes_count'] = hasLiked ? currentLikes - 1 : currentLikes + 1;
-      });
-
-      if (hasLiked) {
-        await FeedRepository.unlikePost(postId, _userEmail!);
-      } else {
-        await FeedRepository.likePost(postId, _userEmail!);
-      }
-    } catch (e) {
-      print('Error toggling like: $e');
-    }
   }
 
   String _formatTime(String? timestamp) {
