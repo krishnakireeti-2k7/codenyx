@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/session_service.dart';
 import '../../services/supabase_service.dart';
 
 class AuthRepository {
@@ -84,12 +85,13 @@ class AuthRepository {
     }
   }
 
-  /// Sign out the current user
+  /// Sign out the current user and clear all session data
   static Future<void> signOut() async {
     try {
       print('👋 Signing out...');
       await SupabaseService.client.auth.signOut();
-      print('✅ Sign out successful');
+      await SessionService.clearSession();
+      print('✅ Sign out successful — Supabase session + SessionService cleared');
     } catch (e) {
       print('❌ Error signing out: $e');
       rethrow;

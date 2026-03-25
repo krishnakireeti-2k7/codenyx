@@ -156,7 +156,6 @@ class _DashboardScreenState extends State<DashboardScreen>
             onPressed: () async {
               Navigator.pop(context);
               await AuthRepository.signOut();
-              await SessionService.clearSession();
               if (!mounted) return;
               GoRouter.of(this.context).go('/');
             },
