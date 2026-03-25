@@ -42,52 +42,113 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
           CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
         );
 
+    // Check if we're returning from OAuth redirect
+    _checkForExistingSession();
+
+    _setupAuthListener();
+    _animationController.forward();
+  }
+
+  /// Check if user is already logged in (e.g., after OAuth redirect)
+  void _checkForExistingSession() {
+    final currentSession = Supabase.instance.client.auth.currentSession;
+    final userEmail = currentSession?.user.email;
+
+    print('🔍 Checking for existing session...');
+    print('   Session exists: ${currentSession != null}');
+    print('   User email: $userEmail');
+
+    if (userEmail != null && !_handledSignIn) {
+      print('✅ Found existing session, processing...');
+      _handleSignInSuccess(userEmail);
+    }
+  }
+
+  /// Setup auth state listener
+  void _setupAuthListener() {
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
     ) async {
-      if (data.event != AuthChangeEvent.signedIn || _handledSignIn) {
-        return;
-      }
+      print('🔥 AUTH EVENT: ${data.event}');
+      print('   User: ${data.session?.user.email}');
 
-      final user = data.session?.user;
-      final email = user?.email;
+      // Handle signedIn event
+      if (data.event == AuthChangeEvent.signedIn && !_handledSignIn) {
+        final email = data.session?.user.email;
 
-      if (email == null) {
-        return;
-        
-      }
-
-      _handledSignIn = true;
-
-      try {
-        final teamId = await AuthRepository.findUserTeam(email);
-
-        if (!mounted) return;
-
-        await SessionService.saveSession(email, teamId ?? "NO_TEAM");
-
-        if (!mounted) return;
-
-        setState(() {
-          loading = false;
-          errorMessage = null;
-        });
-
-        context.go('/dashboard');
-      } catch (e) {
-        _handledSignIn = false;
-
-        if (!mounted) return;
-
-        setState(() {
-          loading = false;
-          errorMessage = "Sign-in failed: ${e.toString()}";
-        });
-        _showErrorSnackBar(errorMessage!);
+        if (email != null) {
+          print('📧 Processing sign-in for: $email');
+          await _handleSignInSuccess(email);
+        }
       }
     });
+  }
 
-    _animationController.forward();
+  /// Handle successful sign-in
+  Future<void> _handleSignInSuccess(String email) async {
+    if (_handledSignIn) {
+      print('⏭️ Already handling sign-in, skipping');
+      return;
+    }
+
+    _handledSignIn = true;
+
+    try {
+      print('🔄 Finding team for email: $email');
+
+      // Find user's team
+      final teamId = await AuthRepository.findUserTeam(email);
+
+      if (!mounted) {
+        print('⚠️ Widget not mounted, aborting');
+        return;
+      }
+
+      if (teamId == null) {
+        print('❌ No team found');
+        setState(() {
+          loading = false;
+          errorMessage = 'Email not found in any team. Contact organizers.';
+        });
+        _showErrorSnackBar(errorMessage!);
+        _handledSignIn = false;
+        return;
+      }
+
+      print('✅ Team found: $teamId');
+
+      // Save session
+      await SessionService.saveSession(email, teamId);
+      print('✅ Session saved');
+
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        errorMessage = null;
+      });
+
+      print('🚀 Navigating to /dashboard');
+
+      // Add a small delay to ensure router is ready
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted) return;
+
+      // Use replace instead of go to avoid back button returning to login
+      context.go('/dashboard');
+    } catch (e) {
+      print('❌ Error: $e');
+      _handledSignIn = false;
+
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        errorMessage = 'Sign-in failed: ${e.toString()}';
+      });
+      _showErrorSnackBar(errorMessage!);
+    }
   }
 
   @override
@@ -98,6 +159,8 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
   }
 
   Future<void> signInWithGoogle() async {
+    print('🔘 Sign in button tapped');
+
     setState(() {
       loading = true;
       errorMessage = null;
@@ -105,11 +168,15 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
 
     try {
       _handledSignIn = false;
+      print('🌐 Initiating Google OAuth...');
       await AuthRepository.signInWithGoogle();
+      print('⏳ Waiting for OAuth redirect...');
     } catch (e) {
+      print('❌ OAuth error: $e');
+
       if (!mounted) return;
 
-      final errorMsg = "Sign-in failed: ${e.toString()}";
+      final errorMsg = 'Sign-in failed: ${e.toString()}';
       setState(() {
         loading = false;
         errorMessage = errorMsg;
@@ -119,6 +186,8 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
   }
 
   void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -392,7 +461,6 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Google Logo (simplified version)
                         Container(
                           width: 20,
                           height: 20,

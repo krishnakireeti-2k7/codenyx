@@ -1,4 +1,5 @@
 import 'package:codenyx/features/social_feed/post_detail_screen.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../services/session_service.dart';
@@ -588,7 +589,7 @@ class _FeedScreenState extends State<FeedScreen> {
                 );
               },
         child: Container(
-          margin: const EdgeInsets.only(bottom: AppTheme.spacingM),
+          margin: EdgeInsets.only(bottom: kIsWeb ? AppTheme.spacingXL : AppTheme.spacingM),
           padding: const EdgeInsets.all(AppTheme.spacingL),
           decoration: isHighlighted
               ? AppTheme.accentCardDecoration()

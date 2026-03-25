@@ -1,26 +1,64 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/supabase_service.dart';
 
 class AuthRepository {
+  /// Get the correct redirect URL based on platform
+  static String? _getRedirectUrl() {
+    if (kIsWeb) {
+      // On Flutter Web, let Supabase handle the redirect in the same browser tab.
+      // This avoids hardcoding a localhost port that won't match Flutter's dynamic dev port.
+      return null;
+    } else if (Platform.isAndroid || Platform.isIOS) {
+      // Mobile platforms still need the app deep link callback.
+      return 'io.supabase.codenyx://login-callback/';
+    }
+
+    // Keep non-mobile fallback unset unless a desktop-specific callback is needed later.
+    return null;
+  }
+
   /// Sign in with Google via Supabase OAuth
+  /// Automatically handles redirect based on platform
   static Future<void> signInWithGoogle() async {
-    await Supabase.instance.client.auth.signInWithOAuth(
-      OAuthProvider.google,
-      redirectTo: 'io.supabase.flutter://login-callback/',
-      queryParams: {'prompt': 'select_account'},
-    );
+    print('🌐 Starting Google OAuth...');
+    print('📱 Platform: ${_getPlatformName()}');
+
+    final redirectUrl = _getRedirectUrl();
+    print('🔄 Redirect URL: $redirectUrl');
+
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: redirectUrl,
+        queryParams: {'prompt': 'select_account'},
+      );
+      print('✅ OAuth initiated successfully');
+    } catch (e) {
+      print('❌ OAuth error: $e');
+      rethrow;
+    }
+  }
+
+  /// Helper to normalize email
+  static String normalizeEmail(String email) {
+    return email.trim().toLowerCase();
   }
 
   /// Find which team the user belongs to using their email
   /// Returns team_id if found, null otherwise
   static Future<String?> findUserTeam(String email) async {
     try {
-      print('🔍 Finding team for email: $email');
+      final normalizedEmail = normalizeEmail(email);
+      print('RAW EMAIL: "$email"');
+      print('NORMALIZED EMAIL: "$normalizedEmail"');
+      print('🔍 Finding team for email: $normalizedEmail');
 
       final response = await SupabaseService.client
           .from('team_members')
           .select('team_id')
-          .eq('email', email.toLowerCase())
+          .eq('email', normalizedEmail)
           .maybeSingle();
 
       if (response != null) {
@@ -32,12 +70,12 @@ class AuthRepository {
             .from('team_members')
             .update({'joined': true})
             .eq('team_id', teamId)
-            .eq('email', email.toLowerCase());
+            .eq('email', normalizedEmail);
 
         print('✅ User marked as joined');
         return teamId;
       } else {
-        print('❌ No team found for email: $email');
+        print('❌ No team found for email: $normalizedEmail');
         return null;
       }
     } catch (e) {
@@ -68,7 +106,7 @@ class AuthRepository {
     return SupabaseService.client.auth.currentUser != null;
   }
 
-  /// Get team members (unchanged from original)
+  /// Get team members
   static Future<List<Map<String, dynamic>>> getTeamMembers(
     String teamId,
   ) async {
@@ -89,7 +127,7 @@ class AuthRepository {
     }
   }
 
-  /// Get team info (unchanged from original)
+  /// Get team info
   static Future<Map<String, dynamic>?> getTeamInfo(String teamId) async {
     try {
       print('🏢 Fetching team info for: $teamId');
@@ -108,14 +146,15 @@ class AuthRepository {
     }
   }
 
-  /// Mark user as joined (unchanged from original)
+  /// Mark user as joined
   static Future<bool> markUserAsJoined(String teamId, String email) async {
     try {
+      final normalizedEmail = normalizeEmail(email);
       await SupabaseService.client
           .from('team_members')
           .update({'joined': true})
           .eq('team_id', teamId)
-          .eq('email', email.toLowerCase());
+          .eq('email', normalizedEmail);
 
       return true;
     } catch (e) {
@@ -124,57 +163,14 @@ class AuthRepository {
     }
   }
 
-  /// Verify team member (deprecated - kept for reference)
-  /// Use signInWithGoogle() + findUserTeam() instead
-  @deprecated
-  static Future<bool> verifyTeamMember({
-    required String email,
-    required String teamId,
-  }) async {
-    try {
-      print('🔍 Verifying: Email=$email, TeamID=$teamId');
-
-      // Check if team exists
-      final teamResponse = await SupabaseService.client
-          .from('teams')
-          .select()
-          .eq('team_id', teamId)
-          .maybeSingle();
-
-      print('Team found: $teamResponse');
-
-      if (teamResponse == null) {
-        print('❌ Team not found: $teamId');
-        return false;
-      }
-
-      // Check if email exists in team_members for this team
-      final memberResponse = await SupabaseService.client
-          .from('team_members')
-          .select()
-          .eq('team_id', teamId)
-          .eq('email', email.toLowerCase())
-          .maybeSingle();
-
-      print('Member found: $memberResponse');
-
-      if (memberResponse == null) {
-        print('❌ Email not found in team: $email');
-        return false;
-      }
-
-      // Update joined status to true
-      await SupabaseService.client
-          .from('team_members')
-          .update({'joined': true})
-          .eq('team_id', teamId)
-          .eq('email', email.toLowerCase());
-
-      print('✅ User verified and joined set to true');
-      return true;
-    } catch (e) {
-      print('Error verifying team member: $e');
-      return false;
-    }
+  /// Helper to get platform name for debugging
+  static String _getPlatformName() {
+    if (kIsWeb) return 'Web';
+    if (Platform.isAndroid) return 'Android';
+    if (Platform.isIOS) return 'iOS';
+    if (Platform.isMacOS) return 'macOS';
+    if (Platform.isLinux) return 'Linux';
+    if (Platform.isWindows) return 'Windows';
+    return 'Unknown';
   }
 }

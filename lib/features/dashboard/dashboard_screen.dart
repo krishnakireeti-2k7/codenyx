@@ -1,8 +1,11 @@
 // dashboard_screen.dart
 
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/layout/web_wrapper.dart';
 import '../../core/theme/app_theme.dart';
 import '../auth/auth_repository.dart';
 import '../../services/supabase_service.dart';
@@ -44,9 +47,44 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _loadDashboardData() async {
     try {
+      // 1. Try saved session first (fast path — works on mobile)
       final session = await SessionService.getSession();
       teamId = session['teamId'] ?? '';
       userEmail = session['email'] ?? '';
+
+      // 2. If session is empty, resolve from Supabase auth (web reload path)
+      if (teamId.isEmpty || userEmail.isEmpty) {
+        print('⚠️ No saved session — resolving from Supabase auth...');
+
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user == null || user.email == null) {
+          print('❌ No authenticated user found');
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        final rawEmail = user.email!;
+        final normalizedEmail = AuthRepository.normalizeEmail(rawEmail);
+        print('RAW EMAIL: "$rawEmail"');
+        print('NORMALIZED EMAIL: "$normalizedEmail"');
+        print('📧 Dashboard resolving team for: $normalizedEmail');
+
+        final foundTeamId = await AuthRepository.findUserTeam(normalizedEmail);
+        if (foundTeamId == null) {
+          print('❌ No team found for this user');
+          setState(() => _isLoading = false);
+          return;
+        }
+
+        teamId = foundTeamId;
+        userEmail = normalizedEmail;
+
+        // Persist so next load is instant
+        await SessionService.saveSession(normalizedEmail, foundTeamId);
+        print('✅ Session saved from dashboard');
+      }
+
+      print('📊 Loading dashboard data for team: $teamId');
 
       if (teamId.isNotEmpty) {
         // Fetch team info
@@ -78,7 +116,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         });
       }
     } catch (e) {
-      print('Error loading dashboard: $e');
+      print('❌ Error loading dashboard: $e');
       setState(() {
         _isLoading = false;
       });
@@ -189,7 +227,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 physics: const BouncingScrollPhysics(),
                 children: [
                   _buildDashboardPage(),
-                  FeedScreen(teamId: teamId),
+                  WebWrapper(child: FeedScreen(teamId: teamId)),
                 ],
               ),
 
@@ -210,45 +248,47 @@ class _DashboardScreenState extends State<DashboardScreen>
     final memberCount = members.length;
 
     return SafeArea(
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(
-          AppTheme.spacingL,
-          AppTheme.spacingM,
-          AppTheme.spacingL,
-          120,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with logout button
-            _buildHeaderWithLogout(),
-            const SizedBox(height: AppTheme.spacingL),
+      child: WebWrapper(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            AppTheme.spacingL,
+            AppTheme.spacingM,
+            AppTheme.spacingL,
+            120,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with logout button
+              _buildHeaderWithLogout(),
+              const SizedBox(height: AppTheme.spacingL),
 
-            // Quick stats
-            _buildQuickStats(memberCount),
-            const SizedBox(height: AppTheme.spacingL),
+              // Quick stats
+              _buildQuickStats(memberCount),
+              SizedBox(height: kIsWeb ? AppTheme.spacingXL : AppTheme.spacingL),
 
-            // Timer banner
-            _buildTimerBanner(),
-            const SizedBox(height: AppTheme.spacingXL),
+              // Timer banner
+              _buildTimerBanner(),
+              SizedBox(height: kIsWeb ? AppTheme.spacingXL * 1.5 : AppTheme.spacingXL),
 
-            // Team section
-            const Text("TEAM", style: AppTheme.sectionHeader),
-            const SizedBox(height: AppTheme.spacingM),
-            Text(
-              teamName.isEmpty ? teamId : teamName,
-              style: AppTheme.pageTitle.copyWith(fontSize: 28),
-            ),
-            const SizedBox(height: AppTheme.spacingS),
-            if (projectName.isNotEmpty)
-              Text(projectName, style: AppTheme.metaText),
-            const SizedBox(height: AppTheme.spacingXL),
+              // Team section
+              const Text("TEAM", style: AppTheme.sectionHeader),
+              const SizedBox(height: AppTheme.spacingM),
+              Text(
+                teamName.isEmpty ? teamId : teamName,
+                style: AppTheme.pageTitle.copyWith(fontSize: 28),
+              ),
+              const SizedBox(height: AppTheme.spacingS),
+              if (projectName.isNotEmpty)
+                Text(projectName, style: AppTheme.metaText),
+              SizedBox(height: kIsWeb ? AppTheme.spacingXL * 1.5 : AppTheme.spacingXL),
 
-            // Team members
-            _buildTeamMembers(memberCount),
-            const SizedBox(height: AppTheme.spacingXL),
-          ],
+              // Team members
+              _buildTeamMembers(memberCount),
+              const SizedBox(height: AppTheme.spacingXL),
+            ],
+          ),
         ),
       ),
     );
