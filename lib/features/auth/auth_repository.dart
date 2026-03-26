@@ -8,9 +8,9 @@ class AuthRepository {
   /// Get the correct redirect URL based on platform
   static String? _getRedirectUrl() {
     if (kIsWeb) {
-      // On Flutter Web, let Supabase handle the redirect in the same browser tab.
-      // This avoids hardcoding a localhost port that won't match Flutter's dynamic dev port.
-      return null;
+      // Web: Use explicit redirect URL so Supabase knows where to send the user back
+      // This prevents the GoRouter assertion error
+      return 'http://localhost:3000/';
     } else if (Platform.isAndroid || Platform.isIOS) {
       // Mobile platforms still need the app deep link callback.
       return 'io.supabase.codenyx://login-callback/';
@@ -91,7 +91,9 @@ class AuthRepository {
       print('👋 Signing out...');
       await SupabaseService.client.auth.signOut();
       await SessionService.clearSession();
-      print('✅ Sign out successful — Supabase session + SessionService cleared');
+      print(
+        '✅ Sign out successful — Supabase session + SessionService cleared',
+      );
     } catch (e) {
       print('❌ Error signing out: $e');
       rethrow;

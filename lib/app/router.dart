@@ -1,41 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../features/auth/google_auth_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
-  debugLogDiagnostics: true,
-  redirect: (context, state) async {
-    final session = Supabase.instance.client.auth.currentSession;
-    final loggedIn = session != null;
-
-    print('🔐 ROUTER REDIRECT CHECK:');
-    print('   Current path: ${state.uri.path}');
-    print('   Logged in: $loggedIn');
-    print('   Session: ${session?.user.email}');
-
-    // If user is not logged in, always go to login
-    if (!loggedIn) {
-      if (state.uri.path != '/') {
-        print('   Action: Redirecting to / (login required)');
-        return '/';
-      }
-      print('   Action: Stay on /');
-      return null;
-    }
-
-    // If user is logged in and on login page, go to dashboard
-    if (loggedIn && state.uri.path == '/') {
-      print('   Action: Redirecting to /dashboard (already logged in)');
-      return '/dashboard';
-    }
-
-    // Otherwise, stay where they are
-    print('   Action: Stay on current page');
-    return null;
-  },
+  debugLogDiagnostics: false,
+  // REMOVED: redirect function entirely
+  // This prevents the GoRouter assertion error on OAuth callback
+  // GoogleAuthScreen will handle navigation via context.go() after auth is complete
   routes: [
     GoRoute(
       path: '/',

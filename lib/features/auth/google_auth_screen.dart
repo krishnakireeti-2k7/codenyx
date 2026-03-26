@@ -42,61 +42,61 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
           CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
         );
 
-    // Check if we're returning from OAuth redirect
+    // CRITICAL: Check if we already have a session (happens after OAuth redirect)
     _checkForExistingSession();
 
+    // Setup listener for auth events
     _setupAuthListener();
+
     _animationController.forward();
   }
 
-  /// Check if user is already logged in (e.g., after OAuth redirect)
+  /// Check if there's already a session (from OAuth redirect)
   void _checkForExistingSession() {
-    final currentSession = Supabase.instance.client.auth.currentSession;
-    final userEmail = currentSession?.user.email;
-
     print('🔍 Checking for existing session...');
-    print('   Session exists: ${currentSession != null}');
-    print('   User email: $userEmail');
+    final session = Supabase.instance.client.auth.currentSession;
+    final email = session?.user.email;
 
-    if (userEmail != null && !_handledSignIn) {
-      print('✅ Found existing session, processing...');
-      _handleSignInSuccess(userEmail);
+    print('   Session exists: ${session != null}');
+    print('   User email: $email');
+
+    if (email != null && !_handledSignIn) {
+      print('✅ Found existing session after OAuth!');
+      _processSignIn(email);
     }
   }
 
-  /// Setup auth state listener
+  /// Setup auth state change listener
   void _setupAuthListener() {
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
       data,
-    ) async {
+    ) {
       print('🔥 AUTH EVENT: ${data.event}');
       print('   User: ${data.session?.user.email}');
 
-      // Handle signedIn event
-      if (data.event == AuthChangeEvent.signedIn && !_handledSignIn) {
+      // Only process signedIn events
+      if (data.event == AuthChangeEvent.signedIn) {
         final email = data.session?.user.email;
-
-        if (email != null) {
-          print('📧 Processing sign-in for: $email');
-          await _handleSignInSuccess(email);
+        if (email != null && !_handledSignIn) {
+          print('📧 Auth state changed to signedIn');
+          _processSignIn(email);
         }
       }
     });
   }
 
-  /// Handle successful sign-in
-  Future<void> _handleSignInSuccess(String email) async {
+  /// Process sign-in: find team, save session, navigate
+  Future<void> _processSignIn(String email) async {
     if (_handledSignIn) {
-      print('⏭️ Already handling sign-in, skipping');
+      print('⏭️ Already processing sign-in, skipping');
       return;
     }
 
     _handledSignIn = true;
+    print('🔄 Processing sign-in for: $email');
 
     try {
-      print('🔄 Finding team for email: $email');
-
-      // Find user's team
+      // Find the user's team
       final teamId = await AuthRepository.findUserTeam(email);
 
       if (!mounted) {
@@ -105,7 +105,7 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
       }
 
       if (teamId == null) {
-        print('❌ No team found');
+        print('❌ No team found for email');
         setState(() {
           loading = false;
           errorMessage = 'Email not found in any team. Contact organizers.';
@@ -117,7 +117,7 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
 
       print('✅ Team found: $teamId');
 
-      // Save session
+      // Save session to local storage
       await SessionService.saveSession(email, teamId);
       print('✅ Session saved');
 
@@ -128,17 +128,19 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
         errorMessage = null;
       });
 
+      // Add small delay to ensure everything is settled
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      if (!mounted) {
+        print('⚠️ Widget not mounted after delay, aborting navigation');
+        return;
+      }
+
       print('🚀 Navigating to /dashboard');
-
-      // Add a small delay to ensure router is ready
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      if (!mounted) return;
-
-      // Use replace instead of go to avoid back button returning to login
+      // Use replace to avoid back button issues
       context.go('/dashboard');
     } catch (e) {
-      print('❌ Error: $e');
+      print('❌ Error during sign-in: $e');
       _handledSignIn = false;
 
       if (!mounted) return;
