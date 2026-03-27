@@ -76,6 +76,7 @@ class AuthRepository {
         print('✅ User marked as joined');
         return teamId;
       } else {
+        print('❌ No team found for email: $email');
         print('❌ No team found for email: $normalizedEmail');
         return null;
       }

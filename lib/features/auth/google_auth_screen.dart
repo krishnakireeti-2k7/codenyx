@@ -24,6 +24,8 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
 
   bool loading = false;
   String? errorMessage;
+  static const String _unregisteredUserMessage =
+      'You are not registered for this hackathon. Please contact organizers.';
 
   @override
   void initState() {
@@ -106,9 +108,11 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
 
       if (teamId == null) {
         print('❌ No team found for email');
+        if (!mounted) return;
+
         setState(() {
           loading = false;
-          errorMessage = 'Email not found in any team. Contact organizers.';
+          errorMessage = _unregisteredUserMessage;
         });
         _showErrorSnackBar(errorMessage!);
         _handledSignIn = false;
@@ -308,27 +312,47 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
                           ),
                           padding: const EdgeInsets.all(AppTheme.spacingL),
                           decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            border: Border.all(color: Colors.red, width: 1),
+                            color: Colors.red.withOpacity(0.08),
+                            border: Border.all(color: Colors.red, width: 1.2),
                             borderRadius: BorderRadius.circular(
                               AppTheme.radiusMedium,
                             ),
                           ),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(
-                                Icons.warning_amber_rounded,
-                                color: Colors.red,
-                              ),
-                              const SizedBox(width: AppTheme.spacingM),
-                              Expanded(
-                                child: Text(
-                                  errorMessage!,
-                                  style: const TextStyle(
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.block_rounded,
                                     color: Colors.red,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
                                   ),
+                                  const SizedBox(width: AppTheme.spacingM),
+                                  Text(
+                                    'Access Denied',
+                                    style: AppTheme.cardTitle.copyWith(
+                                      color: Colors.red,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: AppTheme.spacingM),
+                              Text(
+                                errorMessage!,
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: AppTheme.spacingS),
+                              Text(
+                                'Contact Support: Please reach out to the organizers if you believe this is a mistake.',
+                                style: AppTheme.metaText.copyWith(
+                                  color: Colors.red.shade700,
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
