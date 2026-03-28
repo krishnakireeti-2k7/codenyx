@@ -1,14 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../features/auth/google_auth_screen.dart';
+import '../features/auth/admin_access.dart';
+import '../features/admin/admin_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   debugLogDiagnostics: false,
-  // REMOVED: redirect function entirely
-  // This prevents the GoRouter assertion error on OAuth callback
-  // GoogleAuthScreen will handle navigation via context.go() after auth is complete
+  redirect: (context, state) {
+    if (state.matchedLocation != '/admin') {
+      return null;
+    }
+
+    final email = Supabase.instance.client.auth.currentUser?.email;
+    if (isAdminUser(email)) {
+      return null;
+    }
+
+    return '/dashboard';
+  },
   routes: [
     GoRoute(
       path: '/',
@@ -47,6 +59,36 @@ final GoRouter appRouter = GoRouter(
         return CustomTransitionPage<void>(
           key: state.pageKey,
           child: const DashboardScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position:
+                    Tween<Offset>(
+                      begin: const Offset(1.0, 0.0),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeInOutCubic,
+                      ),
+                    ),
+                child: child,
+              ),
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 350),
+          reverseTransitionDuration: const Duration(milliseconds: 250),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/admin',
+      name: 'admin',
+      pageBuilder: (context, state) {
+        return CustomTransitionPage<void>(
+          key: state.pageKey,
+          child: const AdminScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
               opacity: animation,

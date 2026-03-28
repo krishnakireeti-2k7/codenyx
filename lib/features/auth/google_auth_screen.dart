@@ -5,6 +5,7 @@ import 'package:codenyx/services/session_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'admin_access.dart';
 import 'auth_repository.dart';
 
 class GoogleAuthScreen extends StatefulWidget {
@@ -98,6 +99,30 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
     print('🔄 Processing sign-in for: $email');
 
     try {
+      final isAdmin = isAdminUser(email);
+
+      if (isAdmin) {
+        print('✅ Admin detected -> skipping team check');
+
+        if (!mounted) return;
+
+        setState(() {
+          loading = false;
+          errorMessage = null;
+        });
+
+        await Future.delayed(const Duration(milliseconds: 300));
+
+        if (!mounted) {
+          print('⚠️ Widget not mounted after delay, aborting navigation');
+          return;
+        }
+
+        print('🚀 Navigating to /admin');
+        context.go('/admin');
+        return;
+      }
+
       // Find the user's team
       final teamId = await AuthRepository.findUserTeam(email);
 
