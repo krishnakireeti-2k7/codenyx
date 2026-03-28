@@ -334,18 +334,22 @@ class _DashboardScreenState extends State<DashboardScreen>
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: Colors.red.withOpacity(0.3)),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
-              children: [
+              children: const [
                 Icon(Icons.logout, color: Colors.red, size: 16),
                 SizedBox(width: 6),
-                Text(
-                  'Logout',
-                  style: TextStyle(
-                    fontFamily: 'DM Sans',
-                    color: Colors.red,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                Flexible(
+                  child: Text(
+                    'Logout',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontFamily: 'DM Sans',
+                      color: Colors.red,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -603,6 +607,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.max,
             children: [
               Icon(
                 icon,
@@ -612,13 +617,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                 size: 20,
               ),
               const SizedBox(width: AppTheme.spacingS),
-              Text(
-                label,
-                style: AppTheme.navLabel.copyWith(
-                  color: isSelected
-                      ? AppTheme.textPrimary
-                      : AppTheme.textSecondary,
-                  fontSize: 12,
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: AppTheme.navLabel.copyWith(
+                    color: isSelected
+                        ? AppTheme.textPrimary
+                        : AppTheme.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],
@@ -663,9 +672,13 @@ class _DashboardScreenState extends State<DashboardScreen>
               children: [
                 Row(
                   children: [
-                    Text(
-                      member['name'] ?? 'Unknown',
-                      style: AppTheme.cardTitle,
+                    Expanded(
+                      child: Text(
+                        member['name'] ?? 'Unknown',
+                        style: AppTheme.cardTitle,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
                     ),
                     if (isCurrentUser) ...[
                       const SizedBox(width: AppTheme.spacingS),
@@ -720,15 +733,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                   size: 14,
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  (member['joined'] as bool) ? "Joined" : "Pending",
-                  style: TextStyle(
-                    fontFamily: 'DM Sans',
-                    color: (member['joined'] as bool)
-                        ? Colors.green
-                        : Colors.grey,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                Flexible(
+                  child: Text(
+                    (member['joined'] as bool) ? "Joined" : "Pending",
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontFamily: 'DM Sans',
+                      color: (member['joined'] as bool)
+                          ? Colors.green
+                          : Colors.grey,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
