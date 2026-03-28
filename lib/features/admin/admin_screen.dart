@@ -1,5 +1,9 @@
 import 'package:codenyx/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../auth/auth_repository.dart';
+import 'manage_announcements_screen.dart';
+import 'manage_mentor_requests_screen.dart';
 
 class AdminScreen extends StatelessWidget {
   const AdminScreen({super.key});
@@ -13,6 +17,45 @@ class AdminScreen extends StatelessWidget {
         centerTitle: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: AppTheme.spacingL),
+            child: GestureDetector(
+              onTap: () async {
+                await AuthRepository.signOut();
+                if (!context.mounted) return;
+                context.go('/');
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingM,
+                  vertical: AppTheme.spacingS,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.logout, color: Colors.red, size: 16),
+                    SizedBox(width: 6),
+                    Text(
+                      'Logout',
+                      style: TextStyle(
+                        fontFamily: 'DM Sans',
+                        color: Colors.red,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Container(
         decoration: const BoxDecoration(gradient: AppTheme.backgroundGradient),
@@ -43,21 +86,40 @@ class AdminScreen extends StatelessWidget {
               icon: Icons.campaign_outlined,
               title: 'Manage Announcements',
               subtitle: 'Create or update event-wide notices.',
-              onTap: () => _showPlaceholder(context, 'Manage Announcements'),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ManageAnnouncementsScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: AppTheme.spacingM),
             _AdminActionTile(
               icon: Icons.support_agent_outlined,
               title: 'View Mentor Requests',
               subtitle: 'Review incoming support and mentoring requests.',
-              onTap: () => _showPlaceholder(context, 'View Mentor Requests'),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ManageMentorRequestsScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: AppTheme.spacingM),
             _AdminActionTile(
               icon: Icons.report_gmailerrorred_outlined,
               title: 'Complaints',
               subtitle: 'Track complaints and moderation placeholders.',
-              onTap: () => _showPlaceholder(context, 'Complaints'),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Complaints module coming soon'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -65,16 +127,6 @@ class AdminScreen extends StatelessWidget {
     );
   }
 
-  static void _showPlaceholder(BuildContext context, String title) {
-    debugPrint('Admin action tapped: $title');
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$title coming soon'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
 }
 
 class _AdminActionTile extends StatelessWidget {

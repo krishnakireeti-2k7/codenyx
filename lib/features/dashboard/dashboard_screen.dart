@@ -11,6 +11,7 @@ import '../auth/auth_repository.dart';
 import '../../services/supabase_service.dart';
 import '../../services/session_service.dart';
 import '../social_feed/feed_screen.dart';
+import '../user/user_updates_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -227,6 +228,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 children: [
                   _buildDashboardPage(),
                   WebWrapper(child: FeedScreen(teamId: teamId)),
+                  const WebWrapper(child: UserUpdatesScreen()),
                 ],
               ),
 
@@ -545,6 +547,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                   icon: Icons.dynamic_feed_rounded,
                   label: "Feed",
                   index: 1,
+                ),
+              ),
+              Expanded(
+                child: _buildNavBarItem(
+                  icon: Icons.notifications_rounded,
+                  label: "Updates",
+                  index: 2,
                 ),
               ),
             ],
