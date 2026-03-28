@@ -2,6 +2,7 @@ import 'package:codenyx/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../auth/auth_repository.dart';
+import '../complaints/admin_complaints_screen.dart';
 import 'manage_announcements_screen.dart';
 import 'manage_mentor_requests_screen.dart';
 
@@ -110,13 +111,12 @@ class AdminScreen extends StatelessWidget {
             const SizedBox(height: AppTheme.spacingM),
             _AdminActionTile(
               icon: Icons.report_gmailerrorred_outlined,
-              title: 'Complaints',
-              subtitle: 'Track complaints and moderation placeholders.',
+              title: 'View Complaints',
+              subtitle: 'Review and resolve participant complaints.',
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Complaints module coming soon'),
-                    behavior: SnackBarBehavior.floating,
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AdminComplaintsScreen(),
                   ),
                 );
               },

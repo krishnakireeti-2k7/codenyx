@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/layout/web_wrapper.dart';
 import '../../core/theme/app_theme.dart';
 import '../auth/auth_repository.dart';
+import '../complaints/user_complaints_screen.dart';
 import '../../services/supabase_service.dart';
 import '../../services/session_service.dart';
 import '../social_feed/feed_screen.dart';
@@ -229,6 +230,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   _buildDashboardPage(),
                   WebWrapper(child: FeedScreen(teamId: teamId)),
                   const WebWrapper(child: UserUpdatesScreen()),
+                  const WebWrapper(child: UserComplaintsScreen()),
                 ],
               ),
 
@@ -520,47 +522,49 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildFloatingNavBar() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTheme.spacingM,
-            vertical: AppTheme.spacingS,
-          ),
-          decoration: BoxDecoration(
-            color: AppTheme.primaryBackground.withOpacity(0.55),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: AppTheme.borderColor.withOpacity(0.9),
-              width: 1,
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(100),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.spacingS,
+              vertical: AppTheme.spacingS,
             ),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: _buildNavBarItem(
+            decoration: BoxDecoration(
+              color: AppTheme.primaryBackground.withOpacity(0.65),
+              borderRadius: BorderRadius.circular(100),
+              border: Border.all(
+                color: AppTheme.borderColor.withOpacity(0.8),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildNavBarItem(
                   icon: Icons.dashboard_rounded,
                   label: "Dashboard",
                   index: 0,
                 ),
-              ),
-              Expanded(
-                child: _buildNavBarItem(
+                _buildNavBarItem(
                   icon: Icons.dynamic_feed_rounded,
                   label: "Feed",
                   index: 1,
                 ),
-              ),
-              Expanded(
-                child: _buildNavBarItem(
+                _buildNavBarItem(
                   icon: Icons.notifications_rounded,
                   label: "Updates",
                   index: 2,
                 ),
-              ),
-            ],
+                _buildNavBarItem(
+                  icon: Icons.report_rounded,
+                  label: "Complaints",
+                  index: 3,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -574,64 +578,64 @@ class _DashboardScreenState extends State<DashboardScreen>
   }) {
     final isSelected = _selectedIndex == index;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _onNavTapped(index),
-        borderRadius: BorderRadius.circular(16),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
-          margin: const EdgeInsets.symmetric(horizontal: AppTheme.spacingS),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTheme.spacingM,
-            vertical: AppTheme.spacingM,
+    return GestureDetector(
+      onTap: () => _onNavTapped(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        margin: const EdgeInsets.symmetric(horizontal: 4.0),
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? AppTheme.spacingL : AppTheme.spacingM,
+          vertical: AppTheme.spacingM,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(100),
+          gradient: isSelected
+              ? LinearGradient(
+                  colors: [
+                    AppTheme.accentPrimary.withOpacity(0.25),
+                    AppTheme.accentSecondary.withOpacity(0.15),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          border: Border.all(
+            color: isSelected
+                ? AppTheme.accentPrimary.withOpacity(0.4)
+                : Colors.transparent,
+            width: 1,
           ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: isSelected
-                ? LinearGradient(
-                    colors: [
-                      AppTheme.accentPrimary.withOpacity(0.26),
-                      AppTheme.accentSecondary.withOpacity(0.14),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            border: Border.all(
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
               color: isSelected
-                  ? AppTheme.accentPrimary.withOpacity(0.35)
-                  : Colors.transparent,
+                  ? AppTheme.accentPrimary
+                  : AppTheme.textSecondary.withOpacity(0.8),
+              size: 22,
             ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.max,
-            children: [
-              Icon(
-                icon,
-                color: isSelected
-                    ? AppTheme.accentPrimary
-                    : AppTheme.textSecondary,
-                size: 20,
-              ),
-              const SizedBox(width: AppTheme.spacingS),
-              Flexible(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
-                  style: AppTheme.navLabel.copyWith(
-                    color: isSelected
-                        ? AppTheme.textPrimary
-                        : AppTheme.textSecondary,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.centerLeft,
+              child: isSelected
+                  ? Padding(
+                      padding: const EdgeInsets.only(left: 8.0),
+                      child: Text(
+                        label,
+                        style: AppTheme.navLabel.copyWith(
+                          color: AppTheme.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
         ),
       ),
     );
