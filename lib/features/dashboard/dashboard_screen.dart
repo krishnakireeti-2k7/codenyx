@@ -306,6 +306,8 @@ class _DashboardScreenState extends State<DashboardScreen>
               _buildQuickStats(memberCount),
               SizedBox(height: kIsWeb ? AppTheme.spacingXL : AppTheme.spacingL),
               _buildTimerBanner(),
+              const SizedBox(height: AppTheme.spacingL),
+              _buildChatBanner(),
               SizedBox(
                 height: kIsWeb ? AppTheme.spacingXL * 1.5 : AppTheme.spacingXL,
               ),
@@ -509,6 +511,69 @@ class _DashboardScreenState extends State<DashboardScreen>
             color: AppTheme.accentPrimary.withOpacity(0.9),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildChatBanner() {
+    return GestureDetector(
+      onTap: () => context.push('/chat'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spacingL,
+          vertical: AppTheme.spacingL,
+        ),
+        decoration: AppTheme.bannerDecoration(),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppTheme.spacingS),
+              decoration: BoxDecoration(
+                color: AppTheme.accentPrimary.withOpacity(0.16),
+                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline,
+                color: AppTheme.accentPrimary,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: AppTheme.spacingM),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Team Chat",
+                    style: TextStyle(
+                      fontFamily: 'DM Sans',
+                      color: AppTheme.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    "Talk with your team",
+                    style: TextStyle(
+                      fontFamily: 'DM Sans',
+                      color: AppTheme.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppTheme.spacingM),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: AppTheme.accentPrimary.withOpacity(0.9),
+            ),
+          ],
+        ),
       ),
     );
   }
