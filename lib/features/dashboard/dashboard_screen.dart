@@ -14,6 +14,8 @@ import '../../services/session_service.dart';
 import '../social_feed/feed_screen.dart';
 import '../user/user_updates_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
+import '../../services/timer_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -33,12 +35,19 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _isLoading = true;
   bool _hasUnreadUpdates = true;
 
+  Timer? _timer;
+  DateTime? _startTimeUtc; // always UTC — never converted until display
+  int _durationHours = 36;
+  bool _timerActive = false;
+
   late PageController _pageController;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: 0);
+
+    _loadTimerOnce();
 
     _pageController.addListener(() {
       setState(() {
@@ -54,47 +63,32 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _loadDashboardData() async {
     try {
-      // 1. Try saved session first (fast path — works on mobile)
       final session = await SessionService.getSession();
       teamId = session['teamId'] ?? '';
       userEmail = session['email'] ?? '';
 
-      // 2. If session is empty, resolve from Supabase auth (web reload path)
       if (teamId.isEmpty || userEmail.isEmpty) {
-        print('⚠️ No saved session — resolving from Supabase auth...');
-
         final user = Supabase.instance.client.auth.currentUser;
         if (user == null || user.email == null) {
-          print('❌ No authenticated user found');
           setState(() => _isLoading = false);
           return;
         }
 
         final rawEmail = user.email!;
         final normalizedEmail = AuthRepository.normalizeEmail(rawEmail);
-        print('RAW EMAIL: "$rawEmail"');
-        print('NORMALIZED EMAIL: "$normalizedEmail"');
-        print('📧 Dashboard resolving team for: $normalizedEmail');
 
         final foundTeamId = await AuthRepository.findUserTeam(normalizedEmail);
         if (foundTeamId == null) {
-          print('❌ No team found for this user');
           setState(() => _isLoading = false);
           return;
         }
 
         teamId = foundTeamId;
         userEmail = normalizedEmail;
-
-        // Persist so next load is instant
         await SessionService.saveSession(normalizedEmail, foundTeamId);
-        print('✅ Session saved from dashboard');
       }
 
-      print('📊 Loading dashboard data for team: $teamId');
-
       if (teamId.isNotEmpty) {
-        // Fetch team info
         final teamResponse = await SupabaseService.client
             .from('teams')
             .select()
@@ -106,7 +100,6 @@ class _DashboardScreenState extends State<DashboardScreen>
           projectName = teamResponse['project_name'] ?? '';
         }
 
-        // Fetch team members
         final membersResponse = await SupabaseService.client
             .from('team_members')
             .select()
@@ -118,16 +111,62 @@ class _DashboardScreenState extends State<DashboardScreen>
           _isLoading = false;
         });
       } else {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     } catch (e) {
-      print('❌ Error loading dashboard: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _loadTimerOnce() async {
+    final data = await TimerService.getTimer();
+
+    if (data == null ||
+        data['is_active'] != true ||
+        data['start_time'] == null) {
+      if (mounted) setState(() => _timerActive = false);
+      return;
+    }
+
+    // Force UTC — Supabase sometimes omits the trailing 'Z'
+    final raw = data['start_time'] as String;
+    _startTimeUtc = DateTime.parse(raw.endsWith('Z') ? raw : '${raw}Z');
+    _durationHours = (data['duration_hours'] as int?) ?? 36;
+
+    _startLocalTimer();
+  }
+
+  void _startLocalTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_startTimeUtc == null || !mounted) return;
+
+      // Both sides UTC — no offset error
+      final endUtc = _startTimeUtc!.add(Duration(hours: _durationHours));
+      final diff = endUtc.difference(DateTime.now().toUtc());
+
+      setState(() {
+        if (diff.isNegative || diff == Duration.zero) {
+          _timerActive = false;
+        } else {
+          _timerActive = true;
+        }
+      });
+    });
+  }
+
+  Duration get _remaining {
+    if (_startTimeUtc == null) return Duration.zero;
+    final endUtc = _startTimeUtc!.add(Duration(hours: _durationHours));
+    final diff = endUtc.difference(DateTime.now().toUtc());
+    return diff.isNegative ? Duration.zero : diff;
+  }
+
+  String formatTime(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    return '${h}h ${m}m ${s}s remaining';
   }
 
   void _onNavTapped(int index) {
@@ -181,6 +220,7 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   void dispose() {
+    _timer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -195,14 +235,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         backgroundColor: AppTheme.primaryBackground,
         body: Stack(
           children: [
-            // Background gradient
             Container(
               decoration: const BoxDecoration(
                 gradient: AppTheme.backgroundGradient,
               ),
             ),
-
-            // Ambient glow
             Positioned(
               top: -80,
               right: -40,
@@ -217,8 +254,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
               ),
             ),
-
-            // PageView with pages
             if (_isLoading)
               const Center(
                 child: CircularProgressIndicator(
@@ -238,8 +273,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const WebWrapper(child: UserComplaintsScreen()),
                 ],
               ),
-
-            // Floating nav bar (bottom) - KEPT IMPORTANT
             Positioned(
               left: AppTheme.spacingL,
               right: AppTheme.spacingL,
@@ -268,31 +301,17 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with logout button
               _buildHeaderWithLogout(),
               const SizedBox(height: AppTheme.spacingL),
-
-              // Quick stats
               _buildQuickStats(memberCount),
               SizedBox(height: kIsWeb ? AppTheme.spacingXL : AppTheme.spacingL),
-
-              // Timer banner
               _buildTimerBanner(),
-              SizedBox(height: kIsWeb ? AppTheme.spacingXL * 1.5 : AppTheme.spacingXL),
-
-              /*// Team section
-              const Text("TEAM", style: AppTheme.sectionHeader),
-              const SizedBox(height: AppTheme.spacingM),
-              Text(
-                teamName.isEmpty ? teamId : teamName,
-                style: AppTheme.pageTitle.copyWith(fontSize: 28),
+              SizedBox(
+                height: kIsWeb ? AppTheme.spacingXL * 1.5 : AppTheme.spacingXL,
               ),
-              const SizedBox(height: AppTheme.spacingS),
-              if (projectName.isNotEmpty)
-                Text(projectName, style: AppTheme.metaText),*/
-              SizedBox(height: kIsWeb ? AppTheme.spacingXL * 1.5 : AppTheme.spacingXL),
-
-              // Team members
+              SizedBox(
+                height: kIsWeb ? AppTheme.spacingXL * 1.5 : AppTheme.spacingXL,
+              ),
               _buildTeamMembers(memberCount),
               const SizedBox(height: AppTheme.spacingXL),
             ],
@@ -424,6 +443,17 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildTimerBanner() {
+    final rem = _remaining;
+    String displayTime;
+
+    if (!_timerActive && _startTimeUtc == null) {
+      displayTime = "Timer not started";
+    } else if (!_timerActive || rem == Duration.zero) {
+      displayTime = "Time's up";
+    } else {
+      displayTime = formatTime(rem);
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppTheme.spacingL,
@@ -450,7 +480,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "Build window",
+                  "Hackathon Timer",
                   style: TextStyle(
                     fontFamily: 'DM Sans',
                     color: AppTheme.textSecondary,
@@ -459,9 +489,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Text(
-                  "12h 34m remaining",
-                  style: TextStyle(
+                Text(
+                  displayTime,
+                  style: const TextStyle(
                     fontFamily: 'DM Sans',
                     color: AppTheme.textPrimary,
                     fontSize: 16,
@@ -518,7 +548,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: members.length,
-            separatorBuilder: (_, _) =>
+            separatorBuilder: (_, __) =>
                 const SizedBox(height: AppTheme.spacingM),
             itemBuilder: (_, index) => _buildMemberCard(members[index]),
           ),
@@ -708,7 +738,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // ── Gradient Avatar ──
           Container(
             width: 46,
             height: 46,
@@ -731,16 +760,12 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
             ),
           ),
-
           const SizedBox(width: AppTheme.spacingL),
-
-          // ── Name + College ──
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Name row + "You" chip
                 Row(
                   children: [
                     Expanded(
@@ -780,10 +805,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ],
                   ],
                 ),
-
                 const SizedBox(height: 5),
-
-                // College + LinkedIn circle on same row
                 Row(
                   children: [
                     Icon(
@@ -825,10 +847,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
           ),
-
           const SizedBox(width: AppTheme.spacingM),
-
-          // ── Joined / Pending badge ──
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
