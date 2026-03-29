@@ -2,33 +2,99 @@ import 'dart:async';
 
 import 'package:codenyx/services/session_service.dart';
 import 'package:codenyx/services/supabase_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'message_model.dart';
 
 class ChatRepository {
-  const ChatRepository();
+  ChatRepository();
 
   SupabaseClient get _client => SupabaseService.client;
 
-  Future<List<MessageModel>> fetchMessages(String teamId, {int limit = 50}) async {
-    final response = await _client
-        .from('team_messages')
-        .select()
-        .eq('team_id', teamId)
-        .order('created_at', ascending: false)
-        .limit(limit);
+  Stream<List<MessageModel>> watchMessages(String teamId) {
+    final controller = StreamController<List<MessageModel>>.broadcast();
+    List<MessageModel> _messages = [];
 
-    final messages = response
-        .map<MessageModel>(
-          (rawMessage) => MessageModel.fromMap(
-            Map<String, dynamic>.from(rawMessage),
-          ),
+    // Initial fetch
+    fetchMessages(teamId)
+        .then((initialMessages) {
+          _messages = [...initialMessages];
+          if (!_messages.isEmpty) {
+            controller.add(List.unmodifiable(_messages));
+          }
+        })
+        .catchError((e) {
+          debugPrint('❌ Error fetching initial messages: $e');
+        });
+
+    // Realtime subscription
+    final channel = _client.channel('team_chat:$teamId');
+
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'team_messages',
+          callback: (payload) {
+            try {
+              final newMessage = MessageModel.fromMap(
+                Map<String, dynamic>.from(payload.newRecord),
+              );
+
+              // Avoid duplicates
+              if (_messages.any((m) => m.id == newMessage.id)) {
+                return;
+              }
+
+              _messages.add(newMessage);
+              _messages.sort(_compareMessages);
+
+              controller.add(List.unmodifiable(_messages));
+            } catch (e) {
+              debugPrint('❌ Error processing realtime message: $e');
+            }
+          },
         )
-        .toList();
+        .subscribe((status, [error]) {
+          debugPrint('📡 Realtime channel status for $teamId: $status');
+          if (error != null) debugPrint('Realtime error: $error');
+        });
 
-    messages.sort(_compareMessages);
-    return messages;
+    // Cleanup
+    controller.onCancel = () async {
+      debugPrint('🛑 Closing realtime channel for team: $teamId');
+      await _client.removeChannel(channel);
+      await controller.close();
+    };
+
+    return controller.stream;
+  }
+
+  Future<List<MessageModel>> fetchMessages(
+    String teamId, {
+    int limit = 50,
+  }) async {
+    try {
+      final response = await _client
+          .from('team_messages')
+          .select()
+          .eq('team_id', teamId)
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      final messages = response
+          .map<MessageModel>(
+            (raw) => MessageModel.fromMap(Map<String, dynamic>.from(raw)),
+          )
+          .toList();
+
+      messages.sort(_compareMessages);
+      return messages;
+    } catch (e) {
+      debugPrint('❌ Failed to fetch messages: $e');
+      return [];
+    }
   }
 
   Future<MessageModel> sendMessage(String teamId, String message) async {
@@ -50,65 +116,20 @@ class ChatRepository {
         .select()
         .single();
 
-    return MessageModel.fromMap(response);
+    return MessageModel.fromMap(Map<String, dynamic>.from(response));
   }
-
-  Stream<MessageModel> subscribeToMessages(String teamId) {
-    final controller = StreamController<MessageModel>.broadcast();
-
-    final channel = _client.channel('team_messages:$teamId');
-
-    print("🚀 Subscribing to team: $teamId");
-
-    channel
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'team_messages',
-          filter: PostgresChangeFilter(
-            type: PostgresChangeFilterType.eq,
-            column: 'team_id',
-            value: teamId,
-          ),
-          callback: (payload) {
-            print("🔥 NEW MESSAGE: ${payload.newRecord}");
-
-            try {
-              final message = MessageModel.fromMap(
-                Map<String, dynamic>.from(payload.newRecord),
-              );
-              controller.add(message);
-            } catch (e) {
-              print("❌ Parse error: $e");
-            }
-          },
-        )
-        .subscribe((status, [error]) {
-          print("📡 Realtime status: $status");
-
-          if (error != null) {
-            print("❌ Realtime error: $error");
-            controller.addError(error);
-          }
-        });
-
-    controller.onCancel = () async {
-      print("🛑 Closing realtime channel for team: $teamId");
-      await _client.removeChannel(channel);
-      await controller.close();
-    };
-
-    return controller.stream;
-  }
-
-  int compareMessages(MessageModel a, MessageModel b) => _compareMessages(a, b);
 
   Future<String> _resolveUserName(String teamId, User currentUser) async {
+    // ... your existing logic (kept unchanged)
     final session = await SessionService.getSession();
-    final email = (currentUser.email ?? session['email'] ?? '').toString().trim();
+    final email = (currentUser.email ?? session['email'] ?? '')
+        .toString()
+        .trim();
 
-    final metadataName = currentUser.userMetadata?['full_name']?.toString() ??
+    final metadataName =
+        currentUser.userMetadata?['full_name']?.toString() ??
         currentUser.userMetadata?['name']?.toString();
+
     if (metadataName != null && metadataName.trim().isNotEmpty) {
       return metadataName.trim();
     }
@@ -125,7 +146,6 @@ class ChatRepository {
       if (memberName != null && memberName.trim().isNotEmpty) {
         return memberName.trim();
       }
-
       return email.split('@').first;
     }
 
@@ -133,16 +153,8 @@ class ChatRepository {
   }
 
   static int _compareMessages(MessageModel a, MessageModel b) {
-    final timestampComparison = a.createdAt.compareTo(b.createdAt);
-    if (timestampComparison != 0) {
-      return timestampComparison;
-    }
-
-    final aId = int.tryParse(a.id);
-    final bId = int.tryParse(b.id);
-    if (aId != null && bId != null) {
-      return aId.compareTo(bId);
-    }
+    final timeComp = a.createdAt.compareTo(b.createdAt);
+    if (timeComp != 0) return timeComp;
 
     return a.id.compareTo(b.id);
   }

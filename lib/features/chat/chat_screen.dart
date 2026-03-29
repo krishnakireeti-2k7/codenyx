@@ -53,40 +53,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _sendMessage() async {
     final teamId = _teamId;
-    final message = _messageController.text.trim();
-    if (teamId == null || teamId.isEmpty || message.isEmpty || _isSending) {
-      return;
-    }
+    final text = _messageController.text.trim();
+    if (teamId == null || text.isEmpty || _isSending) return;
 
     setState(() => _isSending = true);
 
     try {
       final repository = ref.read(chatRepositoryProvider);
-      final confirmedMessage = await repository.sendMessage(teamId, message);
-
-      if (!mounted) return;
-
-      ref
-          .read(teamMessagesControllerProvider(teamId))
-          .insertConfirmed(confirmedMessage);
+      await repository.sendMessage(teamId, text);
 
       _messageController.clear();
-      _scrollToBottom();
+      _scrollToBottom(); // optimistic scroll
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to send message: $e'),
+          content: Text('Failed to send: $e'),
           behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.red,
         ),
       );
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
   }
-
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;

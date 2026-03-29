@@ -11,16 +11,30 @@ final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   debugLogDiagnostics: false,
   redirect: (context, state) {
-    if (state.matchedLocation != '/admin') {
-      return null;
+    final session = Supabase.instance.client.auth.currentSession;
+    final isLoggedIn = session != null;
+
+    final isGoingToLogin = state.matchedLocation == '/';
+
+    // If NOT logged in → force login
+    if (!isLoggedIn && !isGoingToLogin) {
+      return '/';
     }
 
-    final email = Supabase.instance.client.auth.currentUser?.email;
-    if (isAdminUser(email)) {
-      return null;
+    // If logged in → skip login page
+    if (isLoggedIn && isGoingToLogin) {
+      return '/dashboard';
     }
 
-    return '/dashboard';
+    // Admin logic (keep yours)
+    if (state.matchedLocation == '/admin') {
+      final email = Supabase.instance.client.auth.currentUser?.email;
+      if (!isAdminUser(email)) {
+        return '/dashboard';
+      }
+    }
+
+    return null;
   },
   routes: [
     GoRoute(
