@@ -1,5 +1,4 @@
 import 'package:codenyx/core/theme/app_theme.dart';
-import 'package:codenyx/services/session_service.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -11,48 +10,30 @@ class UserUpdatesScreen extends StatefulWidget {
 }
 
 class _UserUpdatesScreenState extends State<UserUpdatesScreen> {
-  String _teamId = '';
   bool _isLoading = true;
   List<Map<String, dynamic>> _announcements = [];
-  List<Map<String, dynamic>> _mentorRequests = [];
 
   @override
   void initState() {
     super.initState();
-    _loadUpdates();
+    _loadAnnouncements();
   }
 
-  Future<void> _loadUpdates() async {
+  Future<void> _loadAnnouncements() async {
     try {
-      final session = await SessionService.getSession();
-      final teamId = (session['teamId'] ?? '').toString();
-
-      final announcementsResponse = await Supabase.instance.client
+      final response = await Supabase.instance.client
           .from('announcements')
           .select()
           .order('created_at', ascending: false);
 
-      List<Map<String, dynamic>> mentorRequestsResponse = [];
-      if (teamId.isNotEmpty) {
-        final mentorResponse = await Supabase.instance.client
-            .from('mentor_requests')
-            .select()
-            .eq('team_id', teamId)
-            .order('created_at', ascending: false);
-
-        mentorRequestsResponse = List<Map<String, dynamic>>.from(mentorResponse);
-      }
-
       if (!mounted) return;
 
       setState(() {
-        _teamId = teamId;
-        _announcements = List<Map<String, dynamic>>.from(announcementsResponse);
-        _mentorRequests = mentorRequestsResponse;
+        _announcements = List<Map<String, dynamic>>.from(response);
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint('Failed to load user updates: $e');
+      debugPrint('Failed to load announcements: $e');
       if (!mounted) return;
 
       setState(() {
@@ -61,7 +42,7 @@ class _UserUpdatesScreenState extends State<UserUpdatesScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to load updates: $e'),
+          content: Text('Failed to load announcements: $e'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.red,
         ),
@@ -80,44 +61,40 @@ class _UserUpdatesScreenState extends State<UserUpdatesScreen> {
     }
 
     return SafeArea(
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(
-          AppTheme.spacingL,
-          AppTheme.spacingM,
-          AppTheme.spacingL,
-          120,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('ANNOUNCEMENTS', style: AppTheme.sectionHeader),
-            const SizedBox(height: AppTheme.spacingM),
-            if (_announcements.isEmpty)
-              _buildEmptyCard('No announcements available right now.')
-            else
-              ..._announcements.map(
-                (announcement) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
-                  child: _AnnouncementCard(announcement: announcement),
-                ),
-              ),
-            const SizedBox(height: AppTheme.spacingXL),
-            const Text('MENTOR REQUESTS', style: AppTheme.sectionHeader),
-            const SizedBox(height: AppTheme.spacingM),
-            if (_teamId.isEmpty)
-              _buildEmptyCard('No team session found for mentor requests.')
-            else if (_mentorRequests.isEmpty)
-              _buildEmptyCard('No mentor requests created for your team yet.')
-            else
-              ..._mentorRequests.map(
-                (request) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
-                  child: _MentorRequestCard(request: request),
-                ),
-              ),
-          ],
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(AppTheme.spacingL, AppTheme.spacingL, AppTheme.spacingL, AppTheme.spacingM),
+            child: Text('LATEST ANNOUNCEMENTS', style: AppTheme.sectionHeader),
+          ),
+          Expanded(
+            child: _announcements.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                    child: _buildEmptyCard('No announcements available right now.'),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadAnnouncements,
+                    color: AppTheme.accentPrimary,
+                    backgroundColor: AppTheme.surfaceLight,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppTheme.spacingL,
+                        0,
+                        AppTheme.spacingL,
+                        120, // Padding for floating nav bar
+                      ),
+                      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                      itemCount: _announcements.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: AppTheme.spacingM),
+                      itemBuilder: (context, index) {
+                        return _AnnouncementCard(announcement: _announcements[index]);
+                      },
+                    ),
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -141,89 +118,42 @@ class _AnnouncementCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = (announcement['title'] ?? 'Untitled').toString();
     final message = (announcement['message'] ?? '').toString();
+    
     final createdAt = (announcement['created_at'] ?? '').toString();
+    String formattedDate = '';
+    
+    if (createdAt.isNotEmpty) {
+      DateTime? parsed = DateTime.tryParse(createdAt)?.toLocal();
+      if (parsed != null) {
+        final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        formattedDate = '${months[parsed.month - 1]} ${parsed.day}, ${parsed.year}';
+      }
+    }
 
     return Container(
       padding: const EdgeInsets.all(AppTheme.spacingL),
-      decoration: AppTheme.cardDecoration(borderRadius: AppTheme.radiusLarge),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: AppTheme.cardTitle),
-          const SizedBox(height: AppTheme.spacingS),
-          Text(message, style: AppTheme.cardBody),
-          if (createdAt.isNotEmpty) ...[
-            const SizedBox(height: AppTheme.spacingM),
-            Text('Created: $createdAt', style: AppTheme.metaText),
-          ],
-        ],
+      decoration: AppTheme.cardDecoration(borderRadius: AppTheme.radiusLarge).copyWith(
+        border: Border.all(color: AppTheme.accentPrimary.withValues(alpha: 0.15)),
+        color: AppTheme.accentPrimary.withValues(alpha: 0.05),
       ),
-    );
-  }
-}
-
-class _MentorRequestCard extends StatelessWidget {
-  const _MentorRequestCard({required this.request});
-
-  final Map<String, dynamic> request;
-
-  @override
-  Widget build(BuildContext context) {
-    final category = (request['category'] ?? 'General').toString();
-    final description = (request['description'] ?? '').toString();
-    final status = (request['status'] ?? 'pending').toString();
-    final statusColor = _statusColor(status);
-
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
-      decoration: AppTheme.cardDecoration(borderRadius: AppTheme.radiusLarge),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(category, style: AppTheme.cardTitle),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spacingM,
-                  vertical: AppTheme.spacingS,
-                ),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  _labelForStatus(status),
-                  style: AppTheme.metaText.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
+              const Icon(Icons.campaign_outlined, color: AppTheme.accentPrimary, size: 20),
+              const SizedBox(width: AppTheme.spacingS),
+              Expanded(child: Text(title, style: AppTheme.cardTitle.copyWith(color: AppTheme.accentPrimary))),
             ],
           ),
-          const SizedBox(height: AppTheme.spacingM),
-          Text(description, style: AppTheme.cardBody),
+          const SizedBox(height: AppTheme.spacingS),
+          Text(message, style: AppTheme.cardBody),
+          if (formattedDate.isNotEmpty) ...[
+            const SizedBox(height: AppTheme.spacingM),
+            Text(formattedDate, style: AppTheme.metaText),
+          ],
         ],
       ),
     );
-  }
-
-  static Color _statusColor(String status) {
-    switch (status) {
-      case 'accepted':
-        return Colors.blue;
-      case 'resolved':
-        return Colors.green;
-      default:
-        return Colors.amber;
-    }
-  }
-
-  static String _labelForStatus(String status) {
-    if (status.isEmpty) return 'Pending';
-    return '${status[0].toUpperCase()}${status.substring(1)}';
   }
 }

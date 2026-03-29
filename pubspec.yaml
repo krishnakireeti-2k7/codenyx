@@ -41,6 +41,7 @@ dependencies:
   flutter_image_compress: ^2.4.0
   shared_preferences: ^2.5.4
   google_sign_in: ^6.2.0  # ✨ NEW: Google OAuth integration
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -69,6 +70,7 @@ flutter:
           weight: 700
   assets:
     - assets/logo/gdg-logo.png
+    - assets/logo/linkedin-transparent.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

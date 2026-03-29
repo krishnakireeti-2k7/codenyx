@@ -440,9 +440,20 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             child: Image.network(
               imageUrl,
               width: double.infinity,
-              fit: BoxFit.cover,
+              fit: BoxFit.contain,
               cacheHeight: 600,
               cacheWidth: 600,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(AppTheme.spacingXL),
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentPrimary),
+                    ),
+                  ),
+                );
+              },
               errorBuilder: (context, error, stackTrace) {
                 return Container(
                   width: double.infinity,

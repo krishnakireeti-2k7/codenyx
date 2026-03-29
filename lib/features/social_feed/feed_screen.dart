@@ -685,11 +685,21 @@ class _FeedScreenState extends State<FeedScreen> {
                     borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                     child: Image.network(
                       post['image_url'],
-                      fit: BoxFit.cover,
+                      fit: BoxFit.contain,
                       width: double.infinity,
-                      height: 180,
                       cacheHeight: 360,
                       cacheWidth: 360,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(AppTheme.spacingXL),
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentPrimary),
+                            ),
+                          ),
+                        );
+                      },
                       errorBuilder: (context, error, stackTrace) {
                         return Container(
                           width: double.infinity,

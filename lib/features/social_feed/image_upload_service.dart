@@ -37,8 +37,6 @@ class ImageUploadService {
           await FlutterImageCompress.compressAndGetFile(
             imageFile.absolute.path,
             targetPath,
-            minHeight: maxHeight,
-            minWidth: maxWidth,
             quality: quality,
             format: CompressFormat.jpeg,
           );

@@ -13,6 +13,7 @@ import '../../services/supabase_service.dart';
 import '../../services/session_service.dart';
 import '../social_feed/feed_screen.dart';
 import '../user/user_updates_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -30,6 +31,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   List members = [];
   int _selectedIndex = 0;
   bool _isLoading = true;
+  bool _hasUnreadUpdates = true;
 
   late PageController _pageController;
 
@@ -41,6 +43,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     _pageController.addListener(() {
       setState(() {
         _selectedIndex = _pageController.page?.round() ?? 0;
+        if (_selectedIndex == 2) {
+          _hasUnreadUpdates = false;
+        }
       });
     });
 
@@ -275,7 +280,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               _buildTimerBanner(),
               SizedBox(height: kIsWeb ? AppTheme.spacingXL * 1.5 : AppTheme.spacingXL),
 
-              // Team section
+              /*// Team section
               const Text("TEAM", style: AppTheme.sectionHeader),
               const SizedBox(height: AppTheme.spacingM),
               Text(
@@ -284,7 +289,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
               const SizedBox(height: AppTheme.spacingS),
               if (projectName.isNotEmpty)
-                Text(projectName, style: AppTheme.metaText),
+                Text(projectName, style: AppTheme.metaText),*/
               SizedBox(height: kIsWeb ? AppTheme.spacingXL * 1.5 : AppTheme.spacingXL),
 
               // Team members
@@ -557,6 +562,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   icon: Icons.notifications_rounded,
                   label: "Updates",
                   index: 2,
+                  showBadge: _hasUnreadUpdates,
                 ),
                 _buildNavBarItem(
                   icon: Icons.report_rounded,
@@ -575,6 +581,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     required IconData icon,
     required String label,
     required int index,
+    bool showBadge = false,
   }) {
     final isSelected = _selectedIndex == index;
 
@@ -610,12 +617,34 @@ class _DashboardScreenState extends State<DashboardScreen>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? AppTheme.accentPrimary
-                  : AppTheme.textSecondary.withOpacity(0.8),
-              size: 22,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  color: isSelected
+                      ? AppTheme.accentPrimary
+                      : AppTheme.textSecondary.withOpacity(0.8),
+                  size: 22,
+                ),
+                if (showBadge)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppTheme.primaryBackground,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             AnimatedSize(
               duration: const Duration(milliseconds: 300),
@@ -643,113 +672,195 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildMemberCard(dynamic member) {
     final isCurrentUser = member['email'] == userEmail;
+    final name = member['name']?.toString() ?? 'Unknown';
+    final college = member['college']?.toString() ?? 'Unknown College';
+    final linkedinUrl = member['linkedin_url']?.toString() ?? '';
+    final hasLinkedin = linkedinUrl.isNotEmpty;
+    final isJoined = member['joined'] == true;
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'U';
+
+    final List<List<Color>> avatarGradients = [
+      [const Color(0xFF4F8EF7), const Color(0xFF845EF7)],
+      [const Color(0xFF20C997), const Color(0xFF4F8EF7)],
+      [const Color(0xFFFF6B6B), const Color(0xFFFFD93D)],
+      [AppTheme.accentPrimary, AppTheme.accentSecondary],
+    ];
+    final gradient =
+        avatarGradients[initial.codeUnitAt(0) % avatarGradients.length];
 
     return Container(
-      margin: const EdgeInsets.only(bottom: AppTheme.spacingM),
-      padding: const EdgeInsets.all(AppTheme.spacingL),
-      decoration: AppTheme.cardDecoration(borderRadius: AppTheme.radiusLarge),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingL,
+        vertical: 14,
+      ),
+      decoration: BoxDecoration(
+        color: isCurrentUser
+            ? AppTheme.accentPrimary.withOpacity(0.05)
+            : AppTheme.surfaceLight.withOpacity(0.4),
+        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+        border: Border.all(
+          color: isCurrentUser
+              ? AppTheme.accentPrimary.withOpacity(0.35)
+              : AppTheme.borderColor.withOpacity(0.6),
+          width: isCurrentUser ? 1.5 : 1,
+        ),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // ── Gradient Avatar ──
           Container(
-            width: 40,
-            height: 40,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
-              color: AppTheme.accentPrimary.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+              gradient: LinearGradient(
+                colors: gradient,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(14),
             ),
-            child: Center(
-              child: Text(
-                (member['email'] as String)[0].toUpperCase(),
-                style: const TextStyle(
-                  fontFamily: 'DM Sans',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.accentPrimary,
-                ),
+            alignment: Alignment.center,
+            child: Text(
+              initial,
+              style: const TextStyle(
+                fontFamily: 'DM Sans',
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
               ),
             ),
           ),
+
           const SizedBox(width: AppTheme.spacingL),
+
+          // ── Name + College ──
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
+                // Name row + "You" chip
                 Row(
                   children: [
                     Expanded(
                       child: Text(
-                        member['name'] ?? 'Unknown',
-                        style: AppTheme.cardTitle,
+                        name,
+                        style: AppTheme.cardTitle.copyWith(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w700,
+                        ),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
                     ),
                     if (isCurrentUser) ...[
-                      const SizedBox(width: AppTheme.spacingS),
+                      const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: AppTheme.spacingS,
+                          horizontal: 8,
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
                           color: AppTheme.accentPrimary.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(
-                            AppTheme.radiusSmall,
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(
+                            color: AppTheme.accentPrimary.withOpacity(0.3),
                           ),
                         ),
                         child: Text(
                           'You',
                           style: AppTheme.metaText.copyWith(
                             color: AppTheme.accentPrimary,
-                            fontSize: 11,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
                     ],
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(member['email'] ?? 'Unknown', style: AppTheme.metaText),
+
+                const SizedBox(height: 5),
+
+                // College + LinkedIn circle on same row
+                Row(
+                  children: [
+                    Icon(
+                      Icons.school_rounded,
+                      size: 12,
+                      color: AppTheme.textSecondary.withOpacity(0.45),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        college,
+                        style: AppTheme.metaText.copyWith(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary.withOpacity(0.75),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
+                    if (hasLinkedin) ...[
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => launchUrl(
+                          Uri.parse(linkedinUrl),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/logo/linkedin-transparent.png',
+                            width: 30,
+                            height: 30,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ],
             ),
           ),
+
+          const SizedBox(width: AppTheme.spacingM),
+
+          // ── Joined / Pending badge ──
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTheme.spacingM,
-              vertical: AppTheme.spacingS,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: (member['joined'] as bool)
-                  ? Colors.green.withOpacity(0.15)
-                  : Colors.grey.withOpacity(0.15),
+              color: isJoined
+                  ? Colors.green.withOpacity(0.12)
+                  : Colors.amber.withOpacity(0.10),
               borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+              border: Border.all(
+                color: isJoined
+                    ? Colors.green.withOpacity(0.28)
+                    : Colors.amber.withOpacity(0.28),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  (member['joined'] as bool)
-                      ? Icons.check_circle
-                      : Icons.schedule,
-                  color: (member['joined'] as bool)
-                      ? Colors.green
-                      : Colors.grey,
-                  size: 14,
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isJoined ? Colors.green : Colors.amber,
+                  ),
                 ),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    (member['joined'] as bool) ? "Joined" : "Pending",
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontFamily: 'DM Sans',
-                      color: (member['joined'] as bool)
-                          ? Colors.green
-                          : Colors.grey,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
+                const SizedBox(width: 5),
+                Text(
+                  isJoined ? 'Joined' : 'Pending',
+                  style: TextStyle(
+                    fontFamily: 'DM Sans',
+                    color: isJoined ? Colors.green : Colors.amber,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],

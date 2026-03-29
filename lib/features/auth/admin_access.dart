@@ -14,6 +14,8 @@ const adminEmails = [
   "nimmagaddatrishikesh@gmail.com",
   "shaiksiddiq264@gmail.com",
   "mksathvik03@gmail.com",
+  "nv181206@gmail.com",
+  "sathwikreddydulipala@gmail.com",
   "tejasvvisarvasiddi@gmail.com",
   "shashankreddy9848@gmail.com",
   "vijayamaresh16@gmail.com",
