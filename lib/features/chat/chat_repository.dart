@@ -54,10 +54,13 @@ class ChatRepository {
   }
 
   Stream<MessageModel> subscribeToMessages(String teamId) {
-    final controller = StreamController<MessageModel>();
+    final controller = StreamController<MessageModel>.broadcast();
 
-    final channel = _client
-        .channel('team_messages:$teamId')
+    final channel = _client.channel('team_messages:$teamId');
+
+    print("🚀 Subscribing to team: $teamId");
+
+    channel
         .onPostgresChanges(
           event: PostgresChangeEvent.insert,
           schema: 'public',
@@ -68,15 +71,31 @@ class ChatRepository {
             value: teamId,
           ),
           callback: (payload) {
-            controller.add(
-              MessageModel.fromMap(Map<String, dynamic>.from(payload.newRecord)),
-            );
+            print("🔥 NEW MESSAGE: ${payload.newRecord}");
+
+            try {
+              final message = MessageModel.fromMap(
+                Map<String, dynamic>.from(payload.newRecord),
+              );
+              controller.add(message);
+            } catch (e) {
+              print("❌ Parse error: $e");
+            }
           },
         )
-        .subscribe();
+        .subscribe((status, [error]) {
+          print("📡 Realtime status: $status");
+
+          if (error != null) {
+            print("❌ Realtime error: $error");
+            controller.addError(error);
+          }
+        });
 
     controller.onCancel = () async {
+      print("🛑 Closing realtime channel for team: $teamId");
       await _client.removeChannel(channel);
+      await controller.close();
     };
 
     return controller.stream;

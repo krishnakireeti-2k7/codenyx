@@ -131,7 +131,7 @@ class AuthRepository {
       return [];
     }
   }
-
+  
   /// Get team info
   static Future<Map<String, dynamic>?> getTeamInfo(String teamId) async {
     try {
