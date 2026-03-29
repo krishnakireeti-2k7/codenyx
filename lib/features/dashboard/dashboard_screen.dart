@@ -166,7 +166,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     final h = d.inHours;
     final m = d.inMinutes.remainder(60);
     final s = d.inSeconds.remainder(60);
-    return '${h}h ${m}m ${s}s remaining';
+    return '${h}h ${m}m ${s}s ';
   }
 
   void _onNavTapped(int index) {
@@ -446,133 +446,242 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildTimerBanner() {
     final rem = _remaining;
+
+    final isUrgent = rem.inHours <= 6 && _timerActive;
+
     String displayTime;
+    bool showCountdown = true;
 
     if (!_timerActive && _startTimeUtc == null) {
-      displayTime = "Timer not started";
+      showCountdown = false;
+      displayTime = "GET READY";
     } else if (!_timerActive || rem == Duration.zero) {
-      displayTime = "Time's up";
+      displayTime = "00:00:00";
     } else {
-      displayTime = formatTime(rem);
+      displayTime = formatTime(rem); // assumed HH:MM:SS
     }
 
+    final timerColor = isUrgent ? Colors.red : AppTheme.accentPrimary;
+
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spacingL,
-        vertical: AppTheme.spacingL,
-      ),
-      decoration: AppTheme.bannerDecoration(isTimer: true),
-      child: Row(
+      padding: const EdgeInsets.all(AppTheme.spacingL),
+      decoration: AppTheme.cardDecoration(borderRadius: AppTheme.radiusLarge),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(AppTheme.spacingS),
-            decoration: BoxDecoration(
-              color: AppTheme.accentPrimary.withOpacity(0.16),
-              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-            ),
-            child: const Icon(
-              Icons.timer_outlined,
-              color: AppTheme.accentPrimary,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: AppTheme.spacingM),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Hackathon Timer",
-                  style: TextStyle(
-                    fontFamily: 'DM Sans',
-                    color: AppTheme.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+          // HEADER
+          Row(
+            children: [
+              const Text("HACKATHON TIMER", style: AppTheme.sectionHeader),
+              const Spacer(),
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: timerColor,
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  displayTime,
-                  style: const TextStyle(
-                    fontFamily: 'DM Sans',
-                    color: AppTheme.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: AppTheme.spacingL),
+
+          // MAIN CONTENT
+          Center(
+            child: showCountdown
+                ? Column(
+                    children: [
+                      Text(
+                        displayTime,
+                        style: TextStyle(
+                          fontFamily: 'DM Sans',
+                          fontSize: 36, // slightly reduced
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 2, // tighter spacing
+                          color: timerColor,
+                          height: 1,
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    children: const [
+                      Text(
+                        "GET READY",
+                        style: TextStyle(
+                          fontFamily: 'DM Sans',
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        "Timer will start soon",
+                        style: TextStyle(
+                          fontFamily: 'DM Sans',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+          ),
+
+          const SizedBox(height: AppTheme.spacingL),
+
+          // PROGRESS BAR (only when active)
+          if (showCountdown)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final total = const Duration(hours: 36);
+                final progress = total.inSeconds > 0
+                    ? (rem.inSeconds / total.inSeconds).clamp(0.0, 1.0)
+                    : 0.0;
+
+                return Stack(
+                  children: [
+                    Container(
+                      height: 5,
+                      width: constraints.maxWidth,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeOut,
+                      height: 5,
+                      width: constraints.maxWidth * progress,
+                      decoration: BoxDecoration(
+                        color: timerColor,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
-          ),
-          const SizedBox(width: AppTheme.spacingM),
-          Icon(
-            Icons.arrow_forward_ios_rounded,
-            size: 14,
-            color: AppTheme.accentPrimary.withOpacity(0.9),
-          ),
         ],
       ),
     );
   }
 
   Widget _buildChatBanner() {
-    return GestureDetector(
-      onTap: () => context.push('/chat'),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppTheme.spacingL,
-          vertical: AppTheme.spacingL,
-        ),
-        decoration: AppTheme.bannerDecoration(),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppTheme.spacingS),
-              decoration: BoxDecoration(
-                color: AppTheme.accentPrimary.withOpacity(0.16),
-                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-              ),
-              child: const Icon(
-                Icons.chat_bubble_outline,
-                color: AppTheme.accentPrimary,
-                size: 18,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingS),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+          onTap: () => context.push('/chat'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.spacingL,
+              vertical: AppTheme.spacingXL,
+            ),
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceLight.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+              border: Border.all(
+                color: AppTheme.accentPrimary.withOpacity(0.35),
+                width: 1.2,
               ),
             ),
-            const SizedBox(width: AppTheme.spacingM),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Team Chat",
-                    style: TextStyle(
-                      fontFamily: 'DM Sans',
-                      color: AppTheme.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.2,
-                    ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppTheme.spacingM),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppTheme.accentPrimary.withOpacity(0.18),
                   ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    "Talk with your team",
-                    style: TextStyle(
-                      fontFamily: 'DM Sans',
-                      color: AppTheme.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: const Icon(
+                    Icons.chat_outlined,
+                    color: AppTheme.accentPrimary,
+                    size: 24,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: AppTheme.spacingL),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            "Team Chat",
+                            style: TextStyle(
+                              fontFamily: 'DM Sans',
+                              color: AppTheme.textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.green.withOpacity(0.4),
+                              ),
+                            ),
+                            child: Row(
+                              children: const [
+                                SizedBox(
+                                  width: 6,
+                                  height: 6,
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: Colors.green,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  "LIVE",
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        "Talk with your team instantly",
+                        style: TextStyle(
+                          fontFamily: 'DM Sans',
+                          color: AppTheme.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppTheme.spacingM),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 16,
+                  color: AppTheme.accentPrimary.withOpacity(0.9),
+                ),
+              ],
             ),
-            const SizedBox(width: AppTheme.spacingM),
-            Icon(
-              Icons.arrow_forward_ios_rounded,
-              size: 14,
-              color: AppTheme.accentPrimary.withOpacity(0.9),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -613,7 +722,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: members.length,
-            separatorBuilder: (_, __) =>
+            separatorBuilder: (_, _) =>
                 const SizedBox(height: AppTheme.spacingM),
             itemBuilder: (_, index) => _buildMemberCard(members[index]),
           ),
