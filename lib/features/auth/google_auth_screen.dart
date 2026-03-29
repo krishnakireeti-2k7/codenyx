@@ -216,6 +216,23 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
     }
   }
 
+  Future<void> _showEmailSignInSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _EmailSignInSheet(
+        onError: (message) {
+          if (!mounted) return;
+          setState(() {
+            errorMessage = message;
+          });
+          _showErrorSnackBar(message);
+        },
+      ),
+    );
+  }
+
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
 
@@ -386,6 +403,8 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
 
                       // Google Sign-In Button
                       _buildGoogleSignInButton(),
+                      const SizedBox(height: AppTheme.spacingM),
+                      _buildAlternateSignInButton(),
                       const SizedBox(height: AppTheme.spacingXL * 1.5),
 
                       // Info Card
@@ -542,6 +561,205 @@ class _GoogleAuthScreenState extends State<GoogleAuthScreen>
                         ),
                       ],
                     ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlternateSignInButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: loading ? null : _showEmailSignInSheet,
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: AppTheme.borderColor),
+          foregroundColor: AppTheme.textPrimary,
+          backgroundColor: AppTheme.surfaceLight.withOpacity(0.55),
+          padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingL),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          ),
+        ),
+        child: const Text(
+          'Sign in another way',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmailSignInSheet extends StatefulWidget {
+  final Function(String) onError;
+
+  const _EmailSignInSheet({required this.onError});
+
+  @override
+  State<_EmailSignInSheet> createState() => _EmailSignInSheetState();
+}
+
+class _EmailSignInSheetState extends State<_EmailSignInSheet> {
+  final TextEditingController _emailController = TextEditingController();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  bool _isSubmitting = false;
+  String? _sheetError;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleContinue() async {
+    final email = _emailController.text.trim().toLowerCase();
+
+    if (email.isEmpty) {
+      setState(() => _sheetError = 'Please enter your email');
+      return;
+    }
+
+    if (!email.contains('@')) {
+      setState(() => _sheetError = 'Enter a valid email');
+      return;
+    }
+
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isSubmitting = true;
+      _sheetError = null;
+    });
+
+    try {
+      await AuthRepository.signInWithEmail(email);
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      context.go('/dashboard');
+    } catch (e) {
+      final message = e.toString().contains("EMAIL_NOT_FOUND")
+          ? 'Email not found. Contact your team.'
+          : 'Something went wrong. Try again.';
+
+      if (!mounted) return;
+
+      setState(() {
+        _isSubmitting = false;
+        _sheetError = message;
+      });
+      widget.onError(message);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppTheme.primaryBackground,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppTheme.radiusLarge),
+            ),
+            border: Border.all(color: AppTheme.borderColor),
+          ),
+          padding: const EdgeInsets.all(AppTheme.spacingL),
+          child: SafeArea(
+            top: false,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppTheme.borderColor,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.spacingL),
+                  const Text('Sign in another way', style: AppTheme.cardTitle),
+                  const SizedBox(height: AppTheme.spacingS),
+                  Text(
+                    'Enter the email you registered with for the hackathon.',
+                    style: AppTheme.cardBody,
+                  ),
+                  const SizedBox(height: AppTheme.spacingL),
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    enabled: !_isSubmitting,
+                    style: const TextStyle(color: AppTheme.textPrimary),
+                    decoration: InputDecoration(
+                      labelText: 'Enter your email',
+                      labelStyle: const TextStyle(
+                        color: AppTheme.textSecondary,
+                      ),
+                      filled: true,
+                      fillColor: AppTheme.surfaceLight.withOpacity(0.9),
+                      errorText: _sheetError,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                        borderSide: const BorderSide(color: AppTheme.borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                        borderSide: const BorderSide(color: AppTheme.borderColor),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                        borderSide: const BorderSide(
+                          color: AppTheme.accentPrimary,
+                          width: 1.4,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppTheme.spacingL),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ? null : _handleContinue,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentPrimary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppTheme.spacingL,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                        ),
+                      ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.3,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Continue'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app/app.dart';
+import 'services/session_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,8 @@ Future<void> main() async {
   Supabase.instance.client.auth.onAuthStateChange.listen((data) {
     print("🔥 AUTH EVENT: ${data.event}");
   });
+
+  await SessionService.initialize();
 
   runApp(const ProviderScope(child: CodeNyxApp()));
 }

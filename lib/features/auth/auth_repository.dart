@@ -47,6 +47,48 @@ class AuthRepository {
     return email.trim().toLowerCase();
   }
 
+  static Future<Map<String, dynamic>> signInWithEmail(String email) async {
+    final normalizedEmail = normalizeEmail(email);
+
+    try {
+      final response = await SupabaseService.client
+          .from('team_members')
+          .select()
+          .eq('email', normalizedEmail)
+          .maybeSingle();
+
+      if (response == null) {
+        throw Exception("EMAIL_NOT_FOUND");
+      }
+
+      final teamId = (response['team_id'] ?? '').toString();
+      final name = (response['name'] ?? '').toString();
+
+      await SessionService.saveSession(
+        normalizedEmail,
+        teamId,
+        userName: name.isEmpty ? null : name,
+      );
+
+      await SupabaseService.client
+          .from('team_members')
+          .update({'joined': true})
+          .eq('email', normalizedEmail);
+
+      return {
+        'email': normalizedEmail,
+        'team_id': teamId,
+        'name': name,
+      };
+    } catch (e) {
+      if (e.toString().contains("EMAIL_NOT_FOUND")) {
+        rethrow;
+      }
+
+      throw Exception("UNKNOWN_ERROR");
+    }
+  }
+
   /// Find which team the user belongs to using their email
   /// Returns team_id if found, null otherwise
   static Future<String?> findUserTeam(String email) async {

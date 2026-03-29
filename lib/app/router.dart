@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/session_service.dart';
 import '../features/auth/google_auth_screen.dart';
 import '../features/auth/admin_access.dart';
 import '../features/admin/admin_screen.dart';
@@ -11,25 +12,24 @@ final GoRouter appRouter = GoRouter(
   initialLocation: '/',
   debugLogDiagnostics: false,
   redirect: (context, state) {
-    final session = Supabase.instance.client.auth.currentSession;
-    final isLoggedIn = session != null;
-
+    final authSession = Supabase.instance.client.auth.currentSession;
+    final localSession = SessionService.hasActiveSession;
+    final isLoggedIn = authSession != null || localSession;
     final isGoingToLogin = state.matchedLocation == '/';
+    final currentEmail =
+        Supabase.instance.client.auth.currentUser?.email ??
+        SessionService.currentEmail;
 
-    // If NOT logged in → force login
     if (!isLoggedIn && !isGoingToLogin) {
       return '/';
     }
 
-    // If logged in → skip login page
     if (isLoggedIn && isGoingToLogin) {
-      return '/dashboard';
+      return isAdminUser(currentEmail) ? '/admin' : '/dashboard';
     }
 
-    // Admin logic (keep yours)
     if (state.matchedLocation == '/admin') {
-      final email = Supabase.instance.client.auth.currentUser?.email;
-      if (!isAdminUser(email)) {
+      if (!isAdminUser(currentEmail)) {
         return '/dashboard';
       }
     }

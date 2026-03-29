@@ -277,7 +277,7 @@ class _FeedScreenState extends State<FeedScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Post deleted ✅'),
+            content: Text('Post deleted '),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           ),
@@ -610,7 +610,7 @@ class _FeedScreenState extends State<FeedScreen> {
                     ),
                     child: Center(
                       child: Text(
-                        (post['user_email'] as String)[0].toUpperCase(),
+                        ((post['user_name'] ?? post['user_email']) as String)[0].toUpperCase(),
                         style: const TextStyle(
                           fontFamily: 'DM Sans',
                           fontSize: 16,
@@ -626,7 +626,7 @@ class _FeedScreenState extends State<FeedScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          post['user_email'] ?? 'Unknown',
+                          post['user_name'] ?? post['user_email'] ?? 'Unknown',
                           style: AppTheme.cardTitle.copyWith(fontSize: 14),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -888,7 +888,7 @@ class _FeedScreenState extends State<FeedScreen> {
                 ),
                 child: Center(
                   child: Text(
-                    (comment['user_email'] as String)[0].toUpperCase(),
+                    ((comment['user_name'] ?? comment['user_email']) as String)[0].toUpperCase(),
                     style: const TextStyle(
                       fontFamily: 'DM Sans',
                       fontSize: 12,
@@ -901,7 +901,7 @@ class _FeedScreenState extends State<FeedScreen> {
               const SizedBox(width: AppTheme.spacingM),
               Expanded(
                 child: Text(
-                  comment['user_email'] ?? 'Unknown',
+                  comment['user_name'] ?? comment['user_email'] ?? 'Unknown',
                   style: AppTheme.metaText.copyWith(fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                 ),

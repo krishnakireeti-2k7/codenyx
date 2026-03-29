@@ -46,7 +46,35 @@ class FeedRepository {
 
       final posts = List<Map<String, dynamic>>.from(response);
 
+      // Fetch member names
+      final uniqueEmails = posts.map((p) => p['user_email'] as String).toSet().toList();
+      final emailToName = <String, String>{};
+
+      if (uniqueEmails.isNotEmpty) {
+        try {
+          final membersRes = await SupabaseService.client
+              .from('team_members')
+              .select('email, name')
+              .filter('email', 'in', uniqueEmails);
+          
+          for (var member in membersRes) {
+            final email = member['email']?.toString();
+            final name = member['name']?.toString();
+            if (email != null && name != null && name.trim().isNotEmpty) {
+              emailToName[email] = name.trim();
+            }
+          }
+        } catch (e) {
+          print('Error fetching member names for posts: $e');
+        }
+      }
+
       for (var post in posts) {
+        final userEmail = post['user_email'] as String;
+        final name = emailToName[userEmail] ?? emailToName[userEmail.toLowerCase()];
+        
+        post['user_name'] = name ?? userEmail.split('@')[0];
+
         final likes = post['likes'] as List;
 
         // Total likes
@@ -210,7 +238,37 @@ class FeedRepository {
           .eq('post_id', postId)
           .order('created_at', ascending: true);
 
-      return List<Map<String, dynamic>>.from(response);
+      final comments = List<Map<String, dynamic>>.from(response);
+
+      final uniqueEmails = comments.map((c) => c['user_email'] as String).toSet().toList();
+      final emailToName = <String, String>{};
+
+      if (uniqueEmails.isNotEmpty) {
+        try {
+          final membersRes = await SupabaseService.client
+              .from('team_members')
+              .select('email, name')
+              .filter('email', 'in', uniqueEmails);
+          
+          for (var member in membersRes) {
+            final email = member['email']?.toString();
+            final name = member['name']?.toString();
+            if (email != null && name != null && name.trim().isNotEmpty) {
+              emailToName[email] = name.trim();
+            }
+          }
+        } catch (e) {
+          print('Error fetching member names for comments: $e');
+        }
+      }
+
+      for (var comment in comments) {
+        final userEmail = comment['user_email'] as String;
+        final name = emailToName[userEmail] ?? emailToName[userEmail.toLowerCase()];
+        comment['user_name'] = name ?? userEmail.split('@')[0];
+      }
+
+      return comments;
     } catch (e) {
       print('Error fetching comments: $e');
       return [];
